@@ -26,9 +26,6 @@ app.use("/products", productRouter);
 const salesRouter = require("./routes/Sales");
 app.use("/sales", salesRouter);
 
-// Login routes
-const authRoutes = require("./routes/Auth");
-app.use("/auth", authRoutes);
 
 
 // Email Routes
