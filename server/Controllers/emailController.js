@@ -1,4 +1,6 @@
 const emailService = require('../Services/emailService');
+require("dotenv").config();
+
 
 class EmailController {
   // Test email service
@@ -7,7 +9,7 @@ class EmailController {
       return res.json({
         success: true,
         message: 'Email service is ready',
-        config: { emailConfigured: true, frontendUrl: 'http://localhost:4001' }
+        config: { emailConfigured: true, frontendUrl: 'https://dukafasta.onrender.com' }
       });
     } catch (error) {
       console.error(error);

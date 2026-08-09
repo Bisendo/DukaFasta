@@ -1,203 +1,732 @@
-const nodemailer = require('nodemailer');
+// emailService.js
 
-// Hardcoded email credentials
-const EMAIL_USER = 'kimotobidaus@gmail.com';
-const EMAIL_PASS = 'kqpkavnickejtwry';
+// Load environment variables
+require("dotenv").config();
 
-// Create transporter with IPv4 preference and better configuration
+const nodemailer = require("nodemailer");
+
+// =====================================================
+// EMAIL CONFIGURATION
+// =====================================================
+
+const EMAIL_USER = process.env.EMAIL_USER;
+const EMAIL_PASS = process.env.EMAIL_PASS;
+
+// Do not print the actual password
+console.log("=================================");
+console.log("📧 Email Configuration");
+console.log("EMAIL_USER:", EMAIL_USER);
+console.log("EMAIL_PASS exists:", !!EMAIL_PASS);
+console.log("=================================");
+
+// Check credentials before creating transporter
+if (!EMAIL_USER || !EMAIL_PASS) {
+  console.error("❌ EMAIL_USER or EMAIL_PASS is missing!");
+  console.error(
+    "Make sure your .env file contains EMAIL_USER and EMAIL_PASS."
+  );
+}
+
+// =====================================================
+// CREATE GMAIL TRANSPORTER
+// =====================================================
+
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  host: 'smtp.gmail.com',
-  port: 587, // Use 587 instead of 465
-  secure: false, // true for 465, false for other ports
+  service: "gmail",
+
   auth: {
     user: EMAIL_USER,
-    pass: EMAIL_PASS
+    pass: EMAIL_PASS,
   },
-  tls: {
-    rejectUnauthorized: false, // Only for development
-    ciphers: 'SSLv3'
-  },
-  connectionTimeout: 30000, // 30 seconds
-  greetingTimeout: 30000,
-  socketTimeout: 30000,
-  // Force IPv4
-  lookup: (hostname, options, callback) => {
-    const dns = require('dns');
-    dns.lookup(hostname, { family: 4 }, callback); // Force IPv4
-  }
 });
 
-// Check connection with better error handling
-transporter.verify(function(error, success) {
+// =====================================================
+// TEST GMAIL CONNECTION
+// =====================================================
+
+transporter.verify((error) => {
   if (error) {
-    console.log("❌ Email connection failed:", error.message);
-    console.log("Trying alternative configuration...");
-    
-    // Try alternative configuration
-    setTimeout(() => {
-      testAlternativeConfig();
-    }, 2000);
+    console.error("=================================");
+    console.error("❌ Gmail SMTP connection failed");
+    console.error("Message:", error.message);
+    console.error("Code:", error.code);
+    console.error("Command:", error.command);
+    console.error("=================================");
   } else {
-    console.log("✅ Email server is ready to send messages");
+    console.log("=================================");
+    console.log("✅ Gmail SMTP server is ready");
+    console.log("=================================");
   }
 });
 
-// Alternative configuration test
-async function testAlternativeConfig() {
-  try {
-    const testTransporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 465,
-      secure: true,
-      auth: {
-        user: EMAIL_USER,
-        pass: EMAIL_PASS
-      },
-      lookup: (hostname, options, callback) => {
-        const dns = require('dns');
-        dns.lookup(hostname, { family: 4 }, callback);
-      }
-    });
-    
-    await testTransporter.verify();
-    console.log("✅ Alternative configuration works!");
-  } catch (err) {
-    console.log("❌ Alternative configuration also failed:", err.message);
-  }
-}
+// =====================================================
+// EMAIL SERVICE CLASS
+// =====================================================
 
 class EmailService {
-  // Send OTP for password reset
+
+  // ===================================================
+  // SEND PASSWORD RESET OTP
+  // ===================================================
+
   async sendOTPEmail(email, otp, firstName) {
-    const subject = 'Password Reset OTP - DukaFasta';
-    const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <style>
-          .container { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { text-align: center; margin-bottom: 30px; }
-          .otp-box { background-color: #f3f4f6; padding: 20px; border-radius: 8px; text-align: center; margin: 25px 0; }
-          .otp-code { font-size: 32px; font-weight: bold; color: #2563eb; letter-spacing: 5px; }
-          .warning { background-color: #fef3c7; padding: 15px; border-radius: 8px; color: #92400e; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1 style="color: #2563eb;">DukaFasta</h1>
-            <p>Password Reset Request</p>
-          </div>
-          
-          <p>Hello <strong>${firstName}</strong>,</p>
-          <p>We received a request to reset your password. Use the OTP code below to proceed:</p>
-          
-          <div class="otp-box">
-            <div class="otp-code">${otp}</div>
-            <p style="color: #666; margin-top: 10px;">This code will expire in 10 minutes</p>
-          </div>
-          
-          <div class="warning">
-            <strong>⚠️ Security Notice:</strong><br>
-            If you didn't request this password reset, please ignore this email or contact support.
-          </div>
-          
-          <hr style="margin: 30px 0;">
-          <p style="color: #666; font-size: 12px; text-align: center;">
-            This is an automated message, please do not reply.<br>
-            © ${new Date().getFullYear()} DukaFasta. All rights reserved.
-          </p>
-        </div>
-      </body>
-      </html>
-    `;
 
     try {
-      console.log(`📧 Attempting to send OTP email to ${email}...`);
-      
-      const info = await transporter.sendMail({
-        from: `"DukaFasta" <${EMAIL_USER}>`,
-        to: email,
-        subject,
-        html
-      });
 
-      console.log(`✅ OTP email sent successfully to ${email}`);
-      console.log('Message ID:', info.messageId);
-      
-      return { 
-        success: true, 
-        email, 
-        messageId: info.messageId 
+      console.log("=================================");
+      console.log("📧 Sending password reset OTP");
+      console.log("To:", email);
+      console.log("OTP:", otp);
+      console.log("=================================");
+
+      // Check recipient
+      if (!email) {
+        throw new Error("Recipient email address is missing");
+      }
+
+      // Check OTP
+      if (!otp) {
+        throw new Error("OTP is missing");
+      }
+
+      const mailOptions = {
+
+        // Sender
+        from: `"DukaFasta" <${EMAIL_USER}>`,
+
+        // Recipient
+        to: email,
+
+        // Email subject
+        subject: "Password Reset OTP - DukaFasta",
+
+        // HTML email
+        html: `
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+  <meta charset="UTF-8">
+
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1.0">
+
+  <title>Password Reset OTP</title>
+
+</head>
+
+<body style="
+  margin: 0;
+  padding: 0;
+  background-color: #f5f5f5;
+  font-family: Arial, Helvetica, sans-serif;
+">
+
+  <div style="
+    max-width: 600px;
+    margin: 30px auto;
+    background-color: #ffffff;
+    border-radius: 10px;
+    padding: 30px;
+    box-sizing: border-box;
+  ">
+
+    <!-- Header -->
+
+    <div style="
+      text-align: center;
+      margin-bottom: 30px;
+    ">
+
+      <h1 style="
+        margin: 0;
+        color: #2563eb;
+      ">
+        DukaFasta
+      </h1>
+
+      <p style="
+        color: #666666;
+        margin-top: 8px;
+      ">
+        Online Shopping System
+      </p>
+
+    </div>
+
+    <!-- Title -->
+
+    <h2 style="
+      color: #222222;
+    ">
+      Password Reset Request
+    </h2>
+
+    <!-- Greeting -->
+
+    <p style="
+      color: #444444;
+      font-size: 16px;
+      line-height: 1.6;
+    ">
+
+      Hello
+      <strong>${firstName || "Customer"}</strong>,
+
+    </p>
+
+    <!-- Message -->
+
+    <p style="
+      color: #444444;
+      font-size: 16px;
+      line-height: 1.6;
+    ">
+
+      We received a request to reset your
+      DukaFasta account password.
+
+      Use the OTP below to continue:
+
+    </p>
+
+    <!-- OTP Box -->
+
+    <div style="
+      background-color: #f3f4f6;
+      border-radius: 10px;
+      padding: 25px;
+      margin: 25px 0;
+      text-align: center;
+    ">
+
+      <p style="
+        margin: 0 0 10px 0;
+        color: #666666;
+        font-size: 14px;
+      ">
+        Your verification code
+      </p>
+
+      <div style="
+        font-size: 36px;
+        font-weight: bold;
+        color: #2563eb;
+        letter-spacing: 8px;
+      ">
+
+        ${otp}
+
+      </div>
+
+      <p style="
+        margin: 15px 0 0 0;
+        color: #666666;
+        font-size: 13px;
+      ">
+
+        This code will expire in 10 minutes.
+
+      </p>
+
+    </div>
+
+    <!-- Security Notice -->
+
+    <div style="
+      background-color: #fff7ed;
+      border-left: 4px solid #f97316;
+      padding: 15px;
+      margin: 20px 0;
+    ">
+
+      <strong>
+        Security Notice
+      </strong>
+
+      <p style="
+        margin: 8px 0 0 0;
+        color: #555555;
+        font-size: 14px;
+      ">
+
+        If you did not request a password reset,
+        please ignore this email.
+
+      </p>
+
+    </div>
+
+    <!-- Footer -->
+
+    <hr style="
+      border: none;
+      border-top: 1px solid #eeeeee;
+      margin: 30px 0;
+    ">
+
+    <p style="
+      text-align: center;
+      color: #888888;
+      font-size: 12px;
+      line-height: 1.5;
+    ">
+
+      This is an automated message.
+      Please do not reply to this email.
+
+      <br><br>
+
+      © ${new Date().getFullYear()} DukaFasta.
+      All rights reserved.
+
+    </p>
+
+  </div>
+
+</body>
+
+</html>
+        `,
       };
-      
+
+      // ===============================================
+      // SEND EMAIL
+      // ===============================================
+
+      const info = await transporter.sendMail(mailOptions);
+
+      console.log("=================================");
+      console.log("✅ OTP EMAIL SENT SUCCESSFULLY");
+      console.log("To:", email);
+      console.log("Message ID:", info.messageId);
+      console.log("Accepted:", info.accepted);
+      console.log("Rejected:", info.rejected);
+      console.log("=================================");
+
+      return {
+
+        success: true,
+
+        email: email,
+
+        messageId: info.messageId,
+
+        accepted: info.accepted,
+
+        rejected: info.rejected,
+
+      };
+
     } catch (error) {
-      console.error('❌ Detailed error sending OTP email:', {
-        message: error.message,
+
+      console.error("=================================");
+      console.error("❌ OTP EMAIL FAILED");
+      console.error("Message:", error.message);
+      console.error("Code:", error.code);
+      console.error("Command:", error.command);
+      console.error("Response:", error.response);
+      console.error("Response Code:", error.responseCode);
+      console.error("=================================");
+
+      return {
+
+        success: false,
+
+        email: email,
+
+        error: error.message,
+
         code: error.code,
-        command: error.command,
-        response: error.response,
-        responseCode: error.responseCode
-      });
-      
-      // Try alternative SMTP settings as fallback
-      return await this.tryAlternativeSMTPSettings(email, otp, firstName);
-    }
-  }
 
-  // Fallback method with alternative SMTP settings
-  async tryAlternativeSMTPSettings(email, otp, firstName) {
-    try {
-      console.log('🔄 Trying alternative SMTP settings...');
-      
-      const alternativeTransporter = nodemailer.createTransport({
-        host: 'smtp.gmail.com',
-        port: 465,
-        secure: true,
-        auth: {
-          user: EMAIL_USER,
-          pass: EMAIL_PASS
-        },
-        tls: {
-          rejectUnauthorized: false
-        }
-      });
-
-      const subject = 'Password Reset OTP - DukaFasta';
-      const html = `Your OTP code is: ${otp}`; // Simplified HTML for fallback
-
-      const info = await alternativeTransporter.sendMail({
-        from: `"DukaFasta" <${EMAIL_USER}>`,
-        to: email,
-        subject,
-        html
-      });
-
-      console.log(`✅ OTP email sent via alternative method to ${email}`);
-      return { success: true, email, messageId: info.messageId };
-      
-    } catch (fallbackError) {
-      console.error('❌ Alternative SMTP also failed:', fallbackError.message);
-      return { 
-        success: false, 
-        error: fallbackError.message 
       };
+
     }
+
   }
 
-  // Keep your other methods unchanged...
+
+  // ===================================================
+  // SEND WELCOME EMAIL
+  // ===================================================
+
   async sendWelcomeEmail(user) {
-    // ... existing code
+
+    try {
+
+      if (!user || !user.email) {
+
+        throw new Error(
+          "User email is missing"
+        );
+
+      }
+
+      const firstName =
+        user.firstName ||
+        user.name ||
+        "Customer";
+
+      const mailOptions = {
+
+        from:
+          `"DukaFasta" <${EMAIL_USER}>`,
+
+        to: user.email,
+
+        subject:
+          "Welcome to DukaFasta 🎉",
+
+        html: `
+
+          <div style="
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: auto;
+            padding: 30px;
+          ">
+
+            <h1 style="
+              color: #2563eb;
+              text-align: center;
+            ">
+              Welcome to DukaFasta!
+            </h1>
+
+            <p>
+              Hello
+              <strong>${firstName}</strong>,
+            </p>
+
+            <p>
+              Your DukaFasta account has been
+              created successfully.
+            </p>
+
+            <p>
+              You can now log in and start
+              shopping.
+            </p>
+
+            <hr>
+
+            <p style="
+              text-align: center;
+              color: #777;
+              font-size: 12px;
+            ">
+              © ${new Date().getFullYear()}
+              DukaFasta
+            </p>
+
+          </div>
+
+        `,
+
+      };
+
+      const info =
+        await transporter.sendMail(
+          mailOptions
+        );
+
+      console.log(
+        "✅ Welcome email sent:",
+        info.messageId
+      );
+
+      return {
+
+        success: true,
+
+        email: user.email,
+
+        messageId: info.messageId,
+
+      };
+
+    } catch (error) {
+
+      console.error(
+        "❌ Welcome email failed:",
+        error.message
+      );
+
+      return {
+
+        success: false,
+
+        error: error.message,
+
+      };
+
+    }
+
   }
 
-  async sendShopkeeperCredentials(shopkeeper, password, ownerName) {
-    // ... existing code
+
+  // ===================================================
+  // SEND SHOPKEEPER CREDENTIALS
+  // ===================================================
+
+  async sendShopkeeperCredentials(
+    shopkeeper,
+    password,
+    ownerName
+  ) {
+
+    try {
+
+      if (!shopkeeper || !shopkeeper.email) {
+
+        throw new Error(
+          "Shopkeeper email is missing"
+        );
+
+      }
+
+      const name =
+        ownerName ||
+        shopkeeper.firstName ||
+        shopkeeper.name ||
+        "Shopkeeper";
+
+      const mailOptions = {
+
+        from:
+          `"DukaFasta" <${EMAIL_USER}>`,
+
+        to: shopkeeper.email,
+
+        subject:
+          "DukaFasta Shopkeeper Account",
+
+        html: `
+
+          <div style="
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: auto;
+            padding: 30px;
+          ">
+
+            <h2 style="
+              color: #2563eb;
+            ">
+              DukaFasta Shopkeeper Account
+            </h2>
+
+            <p>
+              Hello
+              <strong>${name}</strong>,
+            </p>
+
+            <p>
+              Your shopkeeper account has
+              been created successfully.
+            </p>
+
+            <div style="
+              background: #f3f4f6;
+              padding: 20px;
+              border-radius: 8px;
+            ">
+
+              <p>
+                <strong>Email:</strong>
+                ${shopkeeper.email}
+              </p>
+
+              <p>
+                <strong>Password:</strong>
+                ${password}
+              </p>
+
+            </div>
+
+            <p>
+              Please change your password after
+              logging in.
+            </p>
+
+            <hr>
+
+            <p style="
+              text-align: center;
+              color: #777;
+              font-size: 12px;
+            ">
+              © ${new Date().getFullYear()}
+              DukaFasta
+            </p>
+
+          </div>
+
+        `,
+
+      };
+
+      const info =
+        await transporter.sendMail(
+          mailOptions
+        );
+
+      console.log(
+        "✅ Shopkeeper credentials sent:",
+        info.messageId
+      );
+
+      return {
+
+        success: true,
+
+        email: shopkeeper.email,
+
+        messageId: info.messageId,
+
+      };
+
+    } catch (error) {
+
+      console.error(
+        "❌ Shopkeeper email failed:",
+        error.message
+      );
+
+      return {
+
+        success: false,
+
+        error: error.message,
+
+      };
+
+    }
+
   }
 
-  async sendPasswordResetConfirmation(email, firstName) {
-    // ... existing code
+
+  // ===================================================
+  // PASSWORD RESET CONFIRMATION
+  // ===================================================
+
+  async sendPasswordResetConfirmation(
+    email,
+    firstName
+  ) {
+
+    try {
+
+      if (!email) {
+
+        throw new Error(
+          "Email address is missing"
+        );
+
+      }
+
+      const mailOptions = {
+
+        from:
+          `"DukaFasta" <${EMAIL_USER}>`,
+
+        to: email,
+
+        subject:
+          "Password Changed Successfully - DukaFasta",
+
+        html: `
+
+          <div style="
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: auto;
+            padding: 30px;
+          ">
+
+            <h2 style="
+              color: #2563eb;
+            ">
+              Password Changed Successfully
+            </h2>
+
+            <p>
+              Hello
+              <strong>${firstName || "Customer"}</strong>,
+            </p>
+
+            <p>
+              Your DukaFasta password has been
+              changed successfully.
+            </p>
+
+            <p>
+              If you did not make this change,
+              please contact support immediately.
+            </p>
+
+            <hr>
+
+            <p style="
+              text-align: center;
+              color: #777;
+              font-size: 12px;
+            ">
+              © ${new Date().getFullYear()}
+              DukaFasta
+            </p>
+
+          </div>
+
+        `,
+
+      };
+
+      const info =
+        await transporter.sendMail(
+          mailOptions
+        );
+
+      console.log(
+        "✅ Password confirmation email sent:",
+        info.messageId
+      );
+
+      return {
+
+        success: true,
+
+        email: email,
+
+        messageId: info.messageId,
+
+      };
+
+    } catch (error) {
+
+      console.error(
+        "❌ Password confirmation email failed:",
+        error.message
+      );
+
+      return {
+
+        success: false,
+
+        error: error.message,
+
+      };
+
+    }
+
   }
+
 }
+
+// =====================================================
+// EXPORT EMAIL SERVICE
+// =====================================================
 
 module.exports = new EmailService();
