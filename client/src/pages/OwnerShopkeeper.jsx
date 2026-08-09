@@ -30,8 +30,7 @@ import {
 } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 
-const API_BASE_URL = "http://localhost:4001";
-
+import { API_BASE_URL } from "../config";
 // Custom Modal Components
 const Modal = ({ isOpen, onClose, children, title, size = "md" }) => {
   if (!isOpen) return null;

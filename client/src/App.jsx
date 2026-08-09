@@ -1,6 +1,5 @@
 import React from 'react';
 import { Routes, Route } from "react-router-dom";
-import { TranslationProvider } from './Context/TranslationContext';
 import ProtectedRoute from './Components/ProtectedRoute';
 
 import Home from "./pages/LandingPage";
@@ -22,7 +21,6 @@ import SalesReport from './Components/SalesReport';
 
 const App = () => {
   return (
-    <TranslationProvider>
       <div className="min-h-screen bg-gray-50">
         <main>
           <Routes>
@@ -136,7 +134,6 @@ const App = () => {
           </Routes>
         </main>
       </div>
-    </TranslationProvider>
   );
 };
 

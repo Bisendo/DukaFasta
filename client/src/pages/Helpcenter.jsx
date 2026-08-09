@@ -16,7 +16,6 @@ import {
   FiGlobe,
   FiExternalLink
 } from "react-icons/fi";
-import { useTranslation } from "../Context/TranslationContext";
 import { useLocation, useNavigate } from "react-router-dom";
 
 const HelpCenter = () => {

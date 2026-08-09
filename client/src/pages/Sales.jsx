@@ -23,7 +23,6 @@ import {
   FiShoppingBag
 } from "react-icons/fi";
 import { useNavigate, useLocation } from "react-router-dom";
-import { useTranslation } from "../Context/TranslationContext";
 import axios from "axios";
 
 const Sales = () => {

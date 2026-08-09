@@ -55,7 +55,7 @@ const ShopkeeperProducts = () => {
     outOfStockItems: 0
   });
   const [businessOwner, setBusinessOwner] = useState(null);
-  
+
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -71,7 +71,7 @@ const ShopkeeperProducts = () => {
       try {
         // Check for access token first
         const accessToken = localStorage.getItem("accessToken");
-        
+
         if (!accessToken) {
           console.log("No access token found, redirecting to login");
           navigate("/login");
@@ -88,7 +88,7 @@ const ShopkeeperProducts = () => {
             console.error("Error parsing user JSON:", error);
           }
         }
-        
+
         // If no user in localStorage, use token data
         if (!user) {
           user = {
@@ -100,18 +100,18 @@ const ShopkeeperProducts = () => {
             accessToken
           };
         }
-        
+
         console.log("User data loaded:", user);
-        
+
         // Set authorization headers
         axios.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
         axios.defaults.headers.common['accessToken'] = accessToken;
-        
+
         setUserData(user);
-        
+
         // Load products
         await loadProducts();
-        
+
       } catch (error) {
         console.error("Error loading data:", error);
         setAuthError("Failed to load data. Please login again.");
@@ -141,32 +141,32 @@ const ShopkeeperProducts = () => {
     try {
       setIsLoading(true);
       const accessToken = localStorage.getItem("accessToken");
-      
+
       if (!accessToken) {
         throw new Error("No access token found");
       }
-      
+
       const response = await axios.get("/products/shopkeeper", {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'accessToken': accessToken
         }
       });
-      
+
       if (response.data && response.data.products) {
         const productsData = response.data.products;
         setProducts(productsData);
         setFilteredProducts(productsData);
-        
+
         // Extract unique categories
         const uniqueCategories = [...new Set(productsData.map(p => p.category).filter(Boolean))];
         setCategories(uniqueCategories);
-        
+
         // Set business owner info
         if (response.data.owner) {
           setBusinessOwner(response.data.owner);
         }
-        
+
         // Use stats from backend if available
         if (response.data.stats) {
           setStats({
@@ -190,11 +190,11 @@ const ShopkeeperProducts = () => {
           outOfStockItems: 0
         });
       }
-      
+
       setIsLoading(false);
     } catch (error) {
       console.error("Error loading products:", error);
-      
+
       if (error.response) {
         if (error.response.status === 401) {
           setAuthError("Session expired. Please login again.");
@@ -209,7 +209,7 @@ const ShopkeeperProducts = () => {
       } else {
         setAuthError("Network error. Please check your connection.");
       }
-      
+
       setIsLoading(false);
     }
   };
@@ -219,18 +219,18 @@ const ShopkeeperProducts = () => {
     let totalStockValue = 0;
     let lowStockItems = 0;
     let outOfStockItems = 0;
-    
+
     productList.forEach(product => {
       const stockValue = (product.purchasePrice || 0) * (product.stockQuantity || 0);
       totalStockValue += stockValue;
-      
+
       if (product.stockQuantity <= 0) {
         outOfStockItems++;
       } else if (product.stockQuantity <= 5) {
         lowStockItems++;
       }
     });
-    
+
     setStats({
       totalProducts: productList.length,
       totalStockValue,
@@ -242,23 +242,23 @@ const ShopkeeperProducts = () => {
   // Filter and sort products
   useEffect(() => {
     let result = [...products];
-    
+
     // Apply search filter
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
-      result = result.filter(product => 
+      result = result.filter(product =>
         (product.description && product.description.toLowerCase().includes(term)) ||
         (product.category && product.category.toLowerCase().includes(term))
       );
     }
-    
+
     // Apply category filter
     if (selectedCategory !== "all") {
       result = result.filter(product => product.category === selectedCategory);
     }
-    
+
     // Apply sorting
-    switch(sortBy) {
+    switch (sortBy) {
       case "name":
         result.sort((a, b) => (a.description || "").localeCompare(b.description || ""));
         break;
@@ -280,7 +280,7 @@ const ShopkeeperProducts = () => {
       default:
         break;
     }
-    
+
     setFilteredProducts(result);
     setCurrentPage(1);
   }, [products, searchTerm, selectedCategory, sortBy]);
@@ -327,37 +327,37 @@ const ShopkeeperProducts = () => {
   // Helper functions for user data
   const getUserFullName = () => {
     if (!userData) return "";
-    
+
     const firstName = userData.firstName || '';
     const lastName = userData.lastName || '';
-    
+
     if (firstName && lastName) {
       return `${firstName} ${lastName}`.trim();
     }
-    
+
     return firstName || lastName || "";
   };
 
   const getUserDisplayName = () => {
     const fullName = getUserFullName();
-    
+
     if (fullName) {
       return fullName;
     }
-    
+
     if (userData?.email) {
       return userData.email.split('@')[0];
     }
-    
+
     return "Shopkeeper";
   };
 
   const getUserRole = () => {
     if (!userData) return "Shopkeeper";
-    
+
     const userType = userData.userType || userData.role;
-    
-    switch(userType?.toLowerCase()) {
+
+    switch (userType?.toLowerCase()) {
       case 'storekeeper':
         return "Storekeeper";
       case 'shopkeeper':
@@ -375,10 +375,10 @@ const ShopkeeperProducts = () => {
 
   const getUserInitials = () => {
     if (!userData) return "SK";
-    
+
     const firstName = userData.firstName || '';
     const lastName = userData.lastName || '';
-    
+
     if (firstName && lastName) {
       return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
     } else if (firstName) {
@@ -388,7 +388,7 @@ const ShopkeeperProducts = () => {
     } else if (userData.email) {
       return userData.email.charAt(0).toUpperCase();
     }
-    
+
     return "SK";
   };
 
@@ -405,7 +405,7 @@ const ShopkeeperProducts = () => {
     }
 
     const accessToken = localStorage.getItem("accessToken");
-    
+
     if (item.requiresAuth && !accessToken) {
       console.log("Access token missing for protected route:", item.path);
       navigate('/login');
@@ -456,43 +456,43 @@ const ShopkeeperProducts = () => {
   // Process sale - UPDATED ENDPOINT
   const handleProcessSale = async () => {
     if (!selectedProduct) return;
-    
+
     if (sellQuantity <= 0) {
       alert("Please enter a valid quantity");
       return;
     }
-    
+
     if (sellQuantity > selectedProduct.stockQuantity) {
       alert(`Only ${selectedProduct.stockQuantity} units available in stock`);
       return;
     }
-    
+
     const unitPrice = sellPrice / sellQuantity;
     if (unitPrice <= 0) {
       alert("Please enter a valid price");
       return;
     }
-    
+
     try {
       setIsLoading(true);
       const accessToken = localStorage.getItem("accessToken");
-      
+
       if (!accessToken) {
         alert("Session expired. Please login again.");
         navigate('/login');
         return;
       }
-      
+
       const saleData = {
         productId: selectedProduct.id,
         quantity: sellQuantity,
         salePrice: unitPrice, // Unit price (per unit)
         productName: selectedProduct.description
       };
-      
+
       console.log("Processing sale:", saleData);
       console.log("Endpoint: /sales");
-      
+
       // FIXED: Using correct endpoint /api/sales
       const response = await axios.post("/sales", saleData, {
         headers: {
@@ -501,7 +501,7 @@ const ShopkeeperProducts = () => {
           'Content-Type': 'application/json'
         }
       });
-      
+
       if (response.data && response.data.success) {
         // Update product stock locally
         const updatedProducts = products.map(p => {
@@ -513,33 +513,33 @@ const ShopkeeperProducts = () => {
           }
           return p;
         });
-        
+
         setProducts(updatedProducts);
         calculateStats(updatedProducts);
-        
+
         // Show success message
         alert(`✅ Sale completed successfully! Total: ${formatCurrency(sellPrice)}`);
-        
+
         // Close modal
         setSellModalOpen(false);
         setSelectedProduct(null);
-        
+
         // Refresh products from server
         await loadProducts();
       } else {
         throw new Error(response.data?.message || "Sale failed");
       }
-      
+
     } catch (error) {
       console.error("Error processing sale:", error);
-      
+
       if (error.response) {
         const errorMsg = error.response.data?.message || "Server error";
         const status = error.response.status;
-        
+
         console.error("Response status:", status);
         console.error("Response data:", error.response.data);
-        
+
         if (status === 401) {
           alert("Session expired. Please login again.");
           clearUserData();
@@ -558,8 +558,10 @@ const ShopkeeperProducts = () => {
         }
       } else if (error.code === 'ERR_NETWORK') {
         alert("Network error. Please check if the server is running.");
-        console.error("Server might be down. Check: http://localhost:4001/health");
-      } else if (error.request) {
+        console.error(
+          "Server might be down. Check:",
+          `${import.meta.env.VITE_API_URL}/health`
+        );
         alert("No response from server. Please check your connection.");
       } else {
         alert("Failed to process sale. Please try again.");
@@ -714,7 +716,7 @@ const ShopkeeperProducts = () => {
                 <span className="text-red-300 font-bold">{stats.outOfStockItems}</span>
               </div>
             </div>
-            
+
             {/* Business Owner Info */}
             {businessOwner && (
               <div className="mt-4 pt-4 border-t border-blue-800">
@@ -763,7 +765,7 @@ const ShopkeeperProducts = () => {
                       <span className="text-sm text-gray-600">{currentDate}</span>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center space-x-3">
                     <button
                       onClick={loadProducts}
@@ -773,7 +775,7 @@ const ShopkeeperProducts = () => {
                       <FiRefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
                       <span className="text-sm font-medium">Refresh</span>
                     </button>
-                    
+
                     {/* User Info Display */}
                     <div className="flex items-center space-x-3">
                       <div className="hidden sm:block text-right">
@@ -846,7 +848,7 @@ const ShopkeeperProducts = () => {
                   Available for sale
                 </div>
               </div>
-              
+
               <div className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl p-6 text-white shadow-lg">
                 <div className="flex items-center justify-between">
                   <div>
@@ -859,7 +861,7 @@ const ShopkeeperProducts = () => {
                   Total inventory value
                 </div>
               </div>
-              
+
               <div className="bg-gradient-to-r from-yellow-500 to-amber-600 rounded-2xl p-6 text-white shadow-lg">
                 <div className="flex items-center justify-between">
                   <div>
@@ -872,7 +874,7 @@ const ShopkeeperProducts = () => {
                   Items needing restock
                 </div>
               </div>
-              
+
               <div className="bg-gradient-to-r from-red-500 to-pink-600 rounded-2xl p-6 text-white shadow-lg">
                 <div className="flex items-center justify-between">
                   <div>
@@ -902,7 +904,7 @@ const ShopkeeperProducts = () => {
                     />
                   </div>
                 </div>
-                
+
                 <div className="flex flex-col sm:flex-row gap-4">
                   <div className="flex items-center gap-2">
                     <FiFilter className="text-gray-500" />
@@ -917,7 +919,7 @@ const ShopkeeperProducts = () => {
                       ))}
                     </select>
                   </div>
-                  
+
                   <div>
                     <select
                       value={sortBy}
@@ -934,7 +936,7 @@ const ShopkeeperProducts = () => {
                   </div>
                 </div>
               </div>
-              
+
               {/* Active Filters Display */}
               <div className="mt-4 flex flex-wrap gap-2">
                 {searchTerm && (
@@ -970,7 +972,7 @@ const ShopkeeperProducts = () => {
                 <FiPackage className="text-gray-400 mx-auto mb-4" size={48} />
                 <h3 className="text-xl font-bold text-gray-700 mb-2">No products found</h3>
                 <p className="text-gray-500 mb-6">
-                  {searchTerm || selectedCategory !== "all" 
+                  {searchTerm || selectedCategory !== "all"
                     ? "No products match your search criteria. Try adjusting your filters."
                     : "No products available for sale. Please contact your business owner to add products."}
                 </p>
@@ -998,15 +1000,15 @@ const ShopkeeperProducts = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8">
                   {currentProducts.map((product) => {
                     const stockStatus = getStockStatus(product.stockQuantity || 0);
-                    
+
                     return (
                       <div key={product.id} className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-300">
                         {/* Product Image */}
                         <div className="h-48 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center relative">
                           {product.image ? (
-                            <img 
-                              src={`${API_BASE_URL}/${product.image}`} 
-                              alt={product.description} 
+                            <img
+                              src={`${API_BASE_URL}/${product.image}`}
+                              alt={product.description}
                               className="h-full w-full object-cover"
                               onError={(e) => {
                                 e.target.onerror = null;
@@ -1023,7 +1025,7 @@ const ShopkeeperProducts = () => {
                             {stockStatus.text}
                           </div>
                         </div>
-                        
+
                         {/* Product Details */}
                         <div className="p-5">
                           <div className="flex items-start justify-between mb-3">
@@ -1031,13 +1033,13 @@ const ShopkeeperProducts = () => {
                               {product.description || "Unnamed Product"}
                             </h3>
                           </div>
-                          
+
                           <div className="mb-4">
                             <span className="inline-block px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium mb-2">
                               {product.category || "Uncategorized"}
                             </span>
                           </div>
-                          
+
                           <div className="space-y-3 mb-5">
                             <div className="flex items-center justify-between">
                               <span className="text-sm text-gray-600">Stock Quantity:</span>
@@ -1045,7 +1047,7 @@ const ShopkeeperProducts = () => {
                                 {product.stockQuantity || 0} units
                               </span>
                             </div>
-                            
+
                             <div className="flex items-center justify-between">
                               <span className="text-sm text-gray-600">Selling Price:</span>
                               <span className="font-bold text-green-600">
@@ -1053,22 +1055,21 @@ const ShopkeeperProducts = () => {
                               </span>
                             </div>
                           </div>
-                          
+
                           {/* Action Buttons */}
                           <div className="flex gap-3">
                             <button
                               onClick={() => handleSellClick(product)}
                               disabled={(product.stockQuantity || 0) <= 0}
-                              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium transition-all ${
-                                (product.stockQuantity || 0) <= 0
+                              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium transition-all ${(product.stockQuantity || 0) <= 0
                                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                                   : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700'
-                              }`}
+                                }`}
                             >
                               <FiShoppingCart size={16} />
                               Sell
                             </button>
-                            
+
                             <button
                               className="px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                               onClick={() => navigate(`/product-details/${product.id}`)}
@@ -1090,7 +1091,7 @@ const ShopkeeperProducts = () => {
                       <div className="text-sm text-gray-600">
                         Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, filteredProducts.length)} of {filteredProducts.length} products
                       </div>
-                      
+
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
@@ -1099,21 +1100,20 @@ const ShopkeeperProducts = () => {
                         >
                           <FiChevronLeft size={20} />
                         </button>
-                        
+
                         {[...Array(totalPages)].map((_, idx) => (
                           <button
                             key={idx}
                             onClick={() => setCurrentPage(idx + 1)}
-                            className={`w-10 h-10 rounded-lg font-medium ${
-                              currentPage === idx + 1
+                            className={`w-10 h-10 rounded-lg font-medium ${currentPage === idx + 1
                                 ? 'bg-blue-600 text-white'
                                 : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
-                            }`}
+                              }`}
                           >
                             {idx + 1}
                           </button>
                         ))}
-                        
+
                         <button
                           onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                           disabled={currentPage === totalPages}
@@ -1176,7 +1176,7 @@ const ShopkeeperProducts = () => {
                   <FiX size={20} />
                 </button>
               </div>
-              
+
               {/* Product Info */}
               <div className="mb-6 p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl">
                 <div className="flex items-center gap-4 mb-4">
@@ -1188,7 +1188,7 @@ const ShopkeeperProducts = () => {
                     <p className="text-sm text-gray-600">{selectedProduct.category || "Uncategorized"}</p>
                   </div>
                 </div>
-                
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-xs text-gray-500 mb-1">Available Stock</p>
@@ -1200,7 +1200,7 @@ const ShopkeeperProducts = () => {
                   </div>
                 </div>
               </div>
-              
+
               {/* Sale Form */}
               <div className="space-y-6">
                 <div>
@@ -1226,7 +1226,7 @@ const ShopkeeperProducts = () => {
                     </button>
                   </div>
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Unit Price (Tsh) <span className="text-red-500">*</span>
@@ -1250,7 +1250,7 @@ const ShopkeeperProducts = () => {
                     </button>
                   </div>
                 </div>
-                
+
                 {/* Summary */}
                 <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-xl border border-blue-100">
                   <h4 className="font-semibold text-gray-800 mb-3">Sale Summary</h4>
@@ -1273,7 +1273,7 @@ const ShopkeeperProducts = () => {
                     </div>
                   </div>
                 </div>
-                
+
                 {/* Action Buttons */}
                 <div className="flex gap-4 pt-4">
                   <button
@@ -1293,7 +1293,7 @@ const ShopkeeperProducts = () => {
                       </>
                     )}
                   </button>
-                  
+
                   <button
                     onClick={() => setSellModalOpen(false)}
                     className="px-6 py-3 border-2 border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-gray-50"
@@ -1331,8 +1331,8 @@ const MenuItem = ({ icon, text, active, onClick, isLogout }) => (
     onClick={onClick}
     className={`
       flex items-center w-full gap-3 p-3 rounded-lg transition-all
-      ${active 
-        ? 'bg-blue-700 text-white shadow-md' 
+      ${active
+        ? 'bg-blue-700 text-white shadow-md'
         : 'hover:bg-blue-700 hover:bg-opacity-50 text-blue-100 hover:text-white'
       }
       ${isLogout ? 'mt-8 border-t border-blue-700 pt-8' : ''}

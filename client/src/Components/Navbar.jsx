@@ -15,10 +15,7 @@ import {
   FiMenu,
   FiX,
 } from "react-icons/fi";
-import { useTranslation } from "../Context/TranslationContext";
-
 function Navbar() {
-  const { language, setLanguage, t } = useTranslation();
   const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
@@ -87,21 +84,21 @@ function Navbar() {
 
   const getNavLinks = () => {
     const baseLinks = [
-      { to: "/", icon: <FiHome />, text: t("Home") },
-      { to: "/Aboutus", icon: <FiShoppingCart />, text: t("About Us") },
+      { to: "/", icon: <FiHome />, text: ("Home") },
+      { to: "/Aboutus", icon: <FiShoppingCart />, text: ("About Us") },
     ];
 
     if (isLoggedIn) {
       return [
         ...baseLinks,
-        { to: getDashboardLink(), icon: <FiBarChart2 />, text: t("Dashboard") },
-        { to: "/settings", icon: <FiSettings />, text: t("settings") },
+        { to: getDashboardLink(), icon: <FiBarChart2 />, text: ("Dashboard") },
+        { to: "/settings", icon: <FiSettings />, text: ("Settings") },
       ];
     }
 
     return [
       ...baseLinks,
-      { to: "/register", icon: <FiBarChart2 />, text: t("Signup") },
+      { to: "/register", icon: <FiBarChart2 />, text: ("Signup") },
     ];
   };
 
@@ -115,10 +112,6 @@ function Navbar() {
       .substring(0, 2);
   };
 
-  const languages = [
-    { code: "en", name: t("english"), flag: "🇺🇸" },
-    { code: "sw", name: t("swahili"), flag: "🇹🇿" },
-  ];
 
   return (
     <>
@@ -165,31 +158,6 @@ function Navbar() {
                 </button>
               )}
 
-              {/* Language */}
-              <div className="relative">
-                <button
-                  onClick={() => setShowLanguageDropdown(!showLanguageDropdown)}
-                  className="flex items-center space-x-2 px-3 py-2 rounded-lg hover:bg-blue-700"
-                >
-                  <FiGlobe />
-                  <FiChevronDown />
-                </button>
-
-                {showLanguageDropdown && (
-                  <div className="absolute right-0 mt-2 w-40 bg-white text-black rounded shadow">
-                    {languages.map((lang) => (
-                      <button
-                        key={lang.code}
-                        onClick={() => handleLanguageChange(lang.code)}
-                        className="block w-full text-left px-4 py-2 hover:bg-gray-100"
-                      >
-                        {lang.flag} {lang.name}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
               {/* User */}
               {isLoggedIn ? (
                 <div className="relative">
@@ -214,14 +182,14 @@ function Navbar() {
                         to="/settings"
                         className="block px-4 py-2 hover:bg-gray-100"
                       >
-                        {t("settings")}
+                        {("settings")}
                       </Link>
 
                       <button
                         onClick={handleLogout}
                         className="block w-full text-left px-4 py-2 text-red-600 hover:bg-red-50"
                       >
-                        {t("logout")}
+                        {("logout")}
                       </button>
                     </div>
                   )}
@@ -231,7 +199,7 @@ function Navbar() {
                   to="/login"
                   className="px-4 py-2 bg-white text-blue-600 rounded-lg"
                 >
-                  {t("login")}
+                  {("login")}
                 </Link>
               )}
             </div>

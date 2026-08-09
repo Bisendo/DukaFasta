@@ -30,13 +30,11 @@ build/
 .env.*
 !.env.example
 
-# SSL certificates
-
-ca.pem
-*.pem
 
 # Dependencies
-
+# Ignore private keys, but allow the Aiven MySQL CA certificate
+*.key
+*.crt
 node_modules/
 
 # Uploaded files
