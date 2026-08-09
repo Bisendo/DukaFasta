@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { API_BASE_URL } from "../config";
 import { 
   FiHome, 
   FiShoppingCart, 
@@ -47,8 +48,7 @@ const Sales = () => {
     total: { amount: 0, transactions: 0 }
   });
 
-  // API base URL
-  const API_BASE_URL = "http://localhost:4001";
+
 
   // Get user data from localStorage and set current date
   useEffect(() => {

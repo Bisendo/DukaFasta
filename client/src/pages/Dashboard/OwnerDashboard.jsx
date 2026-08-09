@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../../config";
 import React, { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import Navbar from "../../Components/Navbar";
@@ -90,15 +91,15 @@ const OwnerDashboard = () => {
         axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
         // Fetch shopkeepers
-        const shopkeepersRes = await axios.get(`http://localhost:4001/users/shopkeepers/${parsedUser.id}`);
+        const shopkeepersRes = await axios.get(`${API_BASE_URL}/users/shopkeepers/${parsedUser.id}`);
         setShopkeepersList(shopkeepersRes.data);
 
         // Fetch products
-        const productsRes = await axios.get(`http://localhost:4001/products/${parsedUser.id}`);
+        const productsRes = await axios.get(`${API_BASE_URL}/products/${parsedUser.id}`);
         setProductsList(productsRes.data);
 
         // Fetch sales
-        const salesRes = await axios.get(`http://localhost:4001/sales/owner/${parsedUser.id}`);
+        const salesRes = await axios.get(`${API_BASE_URL}/sales/owner/${parsedUser.id}`);
         setSalesList(salesRes.data);
 
         // Set stats
@@ -139,7 +140,7 @@ const OwnerDashboard = () => {
       const token = localStorage.getItem("authToken");
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
-      const res = await axios.post(`http://localhost:4001/users/shopkeeper/${owner.id}`, shopkeeperForm);
+      const res = await axios.post(`${API_BASE_URL}/users/shopkeeper/${owner.id}`, shopkeeperForm);
 
       alert("Shopkeeper created successfully! Email notification sent.");
       setShopkeepersList(prev => [...prev, res.data.shopkeeper]);
@@ -160,7 +161,7 @@ const OwnerDashboard = () => {
       const token = localStorage.getItem("authToken");
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
-      const res = await axios.post(`http://localhost:4001/products/${owner.id}`, productForm);
+      const res = await axios.post(`${API_BASE_URL}/products/${owner.id}`, productForm);
 
       alert("Product created successfully!");
       const updatedProducts = [...productsList, res.data];
@@ -185,7 +186,7 @@ const OwnerDashboard = () => {
       const token = localStorage.getItem("authToken");
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
-      const res = await axios.post(`http://localhost:4001/sales`, saleForm);
+      const res = await axios.post(`${API_BASE_URL}/sales`, saleForm);
 
       alert("Sale created successfully!");
       

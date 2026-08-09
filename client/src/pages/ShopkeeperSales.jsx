@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { API_BASE_URL } from "../config";
 import axios from "axios";
 import {
   FiHome,
@@ -38,9 +39,7 @@ import {
 import { useNavigate, useLocation } from "react-router-dom";
 import { format } from 'date-fns';
 
-// Configure Axios base URL
-const API_BASE_URL = "http://localhost:4001";
-axios.defaults.baseURL = API_BASE_URL;
+
 
 const ShopkeeperSales = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);

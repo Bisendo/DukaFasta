@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import { API_BASE_URL } from "../config";
 import {
   FiHome,
   FiShoppingCart,
@@ -26,7 +27,6 @@ import {
 import { useNavigate, useLocation } from "react-router-dom";
 
 // Configure Axios base URL
-const API_BASE_URL = "http://localhost:4001";
 axios.defaults.baseURL = API_BASE_URL;
 
 const AddProductForm = () => {

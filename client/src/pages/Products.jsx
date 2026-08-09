@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { API_BASE_URL } from "../config";
 import {
   FiHome,
   FiShoppingCart,
@@ -39,8 +40,7 @@ const Products = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Base URL for API
-  const API_BASE_URL = "http://localhost:4001";
+ 
 
   // Get user data from localStorage on component mount
   useEffect(() => {

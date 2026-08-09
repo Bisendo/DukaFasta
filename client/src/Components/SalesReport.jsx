@@ -1,5 +1,6 @@
 // src/Components/SalesReport.jsx
 import React, { useEffect, useState } from "react";
+import { API_BASE_URL } from "../config";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import {
@@ -108,9 +109,9 @@ const SalesReport = () => {
 
       // Fetch all data in parallel
       const [shopkeepersRes, productsRes, salesRes] = await Promise.all([
-        axios.get(`http://localhost:4001/users/shopkeepers/${userData.id}`),
-        axios.get(`http://localhost:4001/products/${userData.id}`),
-        axios.get(`http://localhost:4001/sales/owner/${userData.id}`)
+        axios.get(`${API_BASE_URL}/users/shopkeepers/${userData.id}`),
+        axios.get(`${API_BASE_URL}/products/${userData.id}`),
+        axios.get(`${API_BASE_URL}/sales/owner/${userData.id}`)
       ]);
 
       setShopkeepers(shopkeepersRes.data);

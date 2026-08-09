@@ -1,10 +1,9 @@
+import { API_BASE_URL } from "../../config";
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../../Components/Navbar";
 import axios from "axios";
 import { FiLogOut, FiBox, FiShoppingCart, FiPlus } from "react-icons/fi";
-
-const API = "http://localhost:4001";
 
 const ShopkeeperDashboard = () => {
   const navigate = useNavigate();
@@ -49,21 +48,21 @@ const ShopkeeperDashboard = () => {
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
       // Fetch products
-      const productsRes = await axios.get(`${API}/products`);
+      const productsRes = await axios.get(`${API_BASE_URL}/products`);
       setProductsList(productsRes.data);
 
       // Fetch sales - with proper error handling
       let salesData = [];
       try {
         // Try to fetch sales specific to this shopkeeper
-        const salesRes = await axios.get(`${API}/sales?shopkeeperId=${user.id}`);
+        const salesRes = await axios.get(`${API_BASE_URL}/sales?shopkeeperId=${user.id}`);
         salesData = salesRes.data;
       } catch (specificError) {
         console.log("Specific shopkeeper sales endpoint not available, trying alternative...");
         
         try {
           // Alternative 1: Get all sales and filter
-          const allSalesRes = await axios.get(`${API}/sales`);
+          const allSalesRes = await axios.get(`${API_BASE_URL}/sales`);
           salesData = allSalesRes.data.filter(
             (sale) => Number(sale.shopkeeperId) === Number(user.id)
           );
@@ -183,7 +182,7 @@ const ShopkeeperDashboard = () => {
       let newSale;
       try {
         // Try to create sale via API
-        const res = await axios.post(`${API}/sales`, {
+        const res = await axios.post(`${API_BASE_URL}/sales`, {
           productId: productId,
           quantity: quantity,
           shopkeeperId: shopkeeper.id,

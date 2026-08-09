@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import {API_BASE_URL} from "../config"; 
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import Navbar from "../Components/Navbar";
@@ -43,7 +44,7 @@ const Login = () => {
     try {
       setLoading(true);
 
-      const res = await axios.post("http://localhost:4001/users/login", formData);
+      const res = await axios.post(`${API_BASE_URL}/users/login`, formData);
 
       console.log("Login Response:", res.data);
 
@@ -110,7 +111,7 @@ const Login = () => {
       setGeneratedOtp(otpCode);
 
       // Send OTP via email
-      const res = await axios.post("http://localhost:4001/users/send-otp", {
+      const res = await axios.post(`${API_BASE_URL}/users/send-otp`, {
         email: resetEmail,
         otp: otpCode
       });
@@ -166,7 +167,7 @@ const Login = () => {
     try {
       setResetLoading(true);
 
-      const res = await axios.post("http://localhost:4001/users/reset-password", {
+      const res = await axios.post(`${API_BASE_URL}/users/reset-password`, {
         email: resetEmail,
         newPassword: newPassword
       });
@@ -204,7 +205,7 @@ const Login = () => {
       const otpCode = generateOTP();
       setGeneratedOtp(otpCode);
 
-      const res = await axios.post("http://localhost:4001/users/send-otp", {
+      const res = await axios.post(`${API_BASE_URL}/users/send-otp`, {
         email: resetEmail,
         otp: otpCode
       });

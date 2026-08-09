@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { API_BASE_URL } from "../config";
 import axios from "axios";
 import Navbar from "../Components/Navbar";
 
@@ -84,7 +85,7 @@ const Register = () => {
     try {
       const { confirmPassword, ...payload } = formData;
 
-      await axios.post("http://localhost:4001/users/owner", payload);
+      await axios.post(`${API_BASE_URL}/users/owner`, payload);
 
       showNotification("🎉 Business Owner Account Created Successfully!", "success");
 
