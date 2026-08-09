@@ -3,11 +3,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 
 import Back01 from "../assets/back02.jpg";
+import Back02 from "../assets/back01.jpg";
 
 import Logo from "../assets/logo.png";
 
 const TEXT = "Welcome to DukaFasta";
-const BACKGROUNDS = [Back01];
+const BACKGROUNDS = [Back01,Back02];
 
 const Landing = () => {
   const navigate = useNavigate();
