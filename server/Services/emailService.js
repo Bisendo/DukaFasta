@@ -352,119 +352,114 @@ class EmailService {
   // SEND WELCOME EMAIL
   // ===================================================
 
-  async sendWelcomeEmail(user) {
-
+async sendWelcomeEmail(user) {
     try {
+        if (!user || !user.email) {
+            throw new Error("User email is missing");
+        }
 
-      if (!user || !user.email) {
+        if (!EMAIL_USER || !EMAIL_PASS) {
+            throw new Error(
+                "EMAIL_USER or EMAIL_PASS is missing"
+            );
+        }
 
-        throw new Error(
-          "User email is missing"
-        );
+        const firstName =
+            user.firstName ||
+            user.name ||
+            "Customer";
 
-      }
+        const mailOptions = {
+            from: `"DukaFasta" <${EMAIL_USER}>`,
+            to: user.email,
+            subject: "Welcome to DukaFasta 🎉",
 
-      const firstName =
-        user.firstName ||
-        user.name ||
-        "Customer";
+            html: `
+                <div style="
+                    font-family: Arial, sans-serif;
+                    max-width: 600px;
+                    margin: auto;
+                    padding: 30px;
+                ">
 
-      const mailOptions = {
+                    <h1 style="
+                        color: #2563eb;
+                        text-align: center;
+                    ">
+                        Welcome to DukaFasta!
+                    </h1>
 
-        from:
-          `"DukaFasta" <${EMAIL_USER}>`,
+                    <p>
+                        Hello <strong>${firstName}</strong>,
+                    </p>
 
-        to: user.email,
+                    <p>
+                        Your DukaFasta owner account
+                        has been created successfully.
+                    </p>
 
-        subject:
-          "Welcome to DukaFasta 🎉",
+                    <p>
+                        You can now log in and start
+                        shopping.
+                    </p>
 
-        html: `
+                    <hr>
 
-          <div style="
-            font-family: Arial, sans-serif;
-            max-width: 600px;
-            margin: auto;
-            padding: 30px;
-          ">
+                    <p style="
+                        text-align: center;
+                        color: #777;
+                        font-size: 12px;
+                    ">
+                        © ${new Date().getFullYear()}
+                        DukaFasta
+                    </p>
 
-            <h1 style="
-              color: #2563eb;
-              text-align: center;
-            ">
-              Welcome to DukaFasta!
-            </h1>
+                </div>
+            `
+        };
 
-            <p>
-              Hello
-              <strong>${firstName}</strong>,
-            </p>
+        console.log("=================================");
+        console.log("📧 SENDING WELCOME EMAIL");
+        console.log("To:", user.email);
+        console.log("From:", EMAIL_USER);
+        console.log("=================================");
 
-            <p>
-              Your DukaFasta account has been
-              created successfully.
-            </p>
+        const info =
+            await transporter.sendMail(mailOptions);
 
-            <p>
-              You can now log in and start
-              shopping.
-            </p>
+        console.log("=================================");
+        console.log("✅ WELCOME EMAIL SENT");
+        console.log("Message ID:", info.messageId);
+        console.log("Accepted:", info.accepted);
+        console.log("Rejected:", info.rejected);
+        console.log("=================================");
 
-            <hr>
-
-            <p style="
-              text-align: center;
-              color: #777;
-              font-size: 12px;
-            ">
-              © ${new Date().getFullYear()}
-              DukaFasta
-            </p>
-
-          </div>
-
-        `,
-
-      };
-
-      const info =
-        await transporter.sendMail(
-          mailOptions
-        );
-
-      console.log(
-        "✅ Welcome email sent:",
-        info.messageId
-      );
-
-      return {
-
-        success: true,
-
-        email: user.email,
-
-        messageId: info.messageId,
-
-      };
+        return {
+            success: true,
+            email: user.email,
+            messageId: info.messageId,
+            accepted: info.accepted,
+            rejected: info.rejected
+        };
 
     } catch (error) {
 
-      console.error(
-        "❌ Welcome email failed:",
-        error.message
-      );
+        console.error("=================================");
+        console.error("❌ WELCOME EMAIL FAILED");
+        console.error("Message:", error.message);
+        console.error("Code:", error.code);
+        console.error("Response:", error.response);
+        console.error("Response Code:", error.responseCode);
+        console.error("=================================");
 
-      return {
-
-        success: false,
-
-        error: error.message,
-
-      };
-
+        return {
+            success: false,
+            email: user?.email || null,
+            error: error.message,
+            code: error.code || null
+        };
     }
-
-  }
+}
 
 
   // ===================================================
