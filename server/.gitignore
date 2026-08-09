@@ -3,6 +3,21 @@ node_modules/
 .env.*
 !.env.example
 
+config/config.json
+config/index.js
+testemail.js
+
+uploads/
+
+dist/
+build/
+
+*.log
+.DS_Storenode_modules/
+.env
+.env.*
+!.env.example
+
 dist/
 build/
 
