@@ -549,7 +549,7 @@ const DataTable = ({ title, data, columns, renderCell }) => (
             </tr>
           </thead>
           <tbody>
-            {data.map((item, idx) => (
+            {/* {data.map((item, idx) => (
               <tr key={item.id || idx} className="hover:bg-gray-50">
                 {columns.map(column => (
                   <td key={`${item.id || idx}-${column}`} className="px-4 py-2 border">
@@ -557,7 +557,7 @@ const DataTable = ({ title, data, columns, renderCell }) => (
                   </td>
                 ))}
               </tr>
-            ))}
+            ))} */}
           </tbody>
         </table>
       </div>

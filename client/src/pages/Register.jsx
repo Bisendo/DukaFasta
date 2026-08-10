@@ -19,104 +19,307 @@ const Register = () => {
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
-  // Notification State
   const [notification, setNotification] = useState({
     message: "",
-    type: "", // "success" | "error"
+    type: "",
     visible: false,
   });
 
-  // Hide notification after 3 seconds
+  // ============================================
+  // HIDE NOTIFICATION AFTER 3 SECONDS
+  // ============================================
   useEffect(() => {
-    if (notification.visible) {
-      const timer = setTimeout(() => {
-        setNotification((prev) => ({ ...prev, visible: false }));
-      }, 3000);
+    if (!notification.visible) return;
 
-      return () => clearTimeout(timer);
-    }
+    const timer = setTimeout(() => {
+      setNotification((prev) => ({
+        ...prev,
+        visible: false,
+      }));
+    }, 3000);
+
+    return () => clearTimeout(timer);
   }, [notification.visible]);
 
-  // Handle input change
+  // ============================================
+  // HANDLE INPUT
+  // ============================================
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
 
     if (errors[name]) {
-      setErrors((prev) => ({ ...prev, [name]: "" }));
+      setErrors((prev) => ({
+        ...prev,
+        [name]: "",
+      }));
     }
   };
 
-  // Client-side validation
+  // ============================================
+  // VALIDATE FORM
+  // ============================================
   const validateForm = () => {
     const newErrors = {};
 
-    if (!formData.firstName.trim()) newErrors.firstName = "First name is required";
-    if (!formData.lastName.trim()) newErrors.lastName = "Last name is required";
+    if (!formData.firstName.trim()) {
+      newErrors.firstName = "First name is required";
+    }
 
-    if (!formData.email.trim()) newErrors.email = "Email is required";
-    else if (!/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = "Invalid email format";
+    if (!formData.lastName.trim()) {
+      newErrors.lastName = "Last name is required";
+    }
 
-    if (!formData.phoneNumber.trim()) newErrors.phoneNumber = "Phone number is required";
+    if (!formData.email.trim()) {
+      newErrors.email = "Email is required";
+    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+      newErrors.email = "Invalid email format";
+    }
 
-    if (!formData.password) newErrors.password = "Password is required";
-    else if (formData.password.length < 6) newErrors.password = "Password must be at least 6 characters";
+    if (!formData.phoneNumber.trim()) {
+      newErrors.phoneNumber = "Phone number is required";
+    }
 
-    if (!formData.confirmPassword) newErrors.confirmPassword = "Please confirm your password";
-    else if (formData.password !== formData.confirmPassword)
-      newErrors.confirmPassword = "Passwords do not match";
+    if (!formData.password) {
+      newErrors.password = "Password is required";
+    } else if (formData.password.length < 6) {
+      newErrors.password =
+        "Password must be at least 6 characters";
+    }
+
+    if (!formData.confirmPassword) {
+      newErrors.confirmPassword =
+        "Please confirm your password";
+    } else if (
+      formData.password !== formData.confirmPassword
+    ) {
+      newErrors.confirmPassword =
+        "Passwords do not match";
+    }
 
     setErrors(newErrors);
+
     return Object.keys(newErrors).length === 0;
   };
 
-  // Show notification
+  // ============================================
+  // SHOW NOTIFICATION
+  // ============================================
   const showNotification = (message, type) => {
-    setNotification({ message, type, visible: true });
+    setNotification({
+      message,
+      type,
+      visible: true,
+    });
   };
 
-  // Handle form submit
+  // ============================================
+  // REGISTER OWNER
+  // ============================================
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!validateForm()) return;
+
+    // Validate form
+    if (!validateForm()) {
+      console.warn(
+        "⚠️ Registration stopped because form validation failed."
+      );
+      return;
+    }
 
     setLoading(true);
 
+    console.log("======================================");
+    console.log("🚀 OWNER REGISTRATION STARTED");
+    console.log("======================================");
+
     try {
+      // Remove confirmPassword before sending
       const { confirmPassword, ...payload } = formData;
 
-      await axios.post(`${API_BASE_URL}/users/owner`, payload);
+      console.log("📤 Sending registration request:");
+      console.log({
+        ...payload,
+        password: "********",
+      });
 
-      showNotification("🎉 Business Owner Account Created Successfully!", "success");
+      console.log(
+        "🌐 API URL:",
+        `${API_BASE_URL}/users/owner`
+      );
 
-      // Redirect after a short delay
-      setTimeout(() => navigate("/login"), 1500);
+      // ========================================
+      // SEND REQUEST
+      // ========================================
+      const response = await axios.post(
+        `${API_BASE_URL}/users/owner`,
+        payload,
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
 
-    } catch (err) {
-      console.error(err);
-      const message = err.response?.data?.error || "Registration failed";
+      // ========================================
+      // SHOW COMPLETE BACKEND RESPONSE
+      // ========================================
+      console.log("======================================");
+      console.log("✅ REGISTRATION RESPONSE");
+      console.log("======================================");
+
+      console.log("HTTP Status:", response.status);
+
+      console.log("Response Headers:", response.headers);
+
+      console.log("Response Data:", response.data);
+
+      console.log(
+        "Owner Information:",
+        response.data?.owner
+      );
+
+      console.log(
+        "Backend Message:",
+        response.data?.message
+      );
+
+      // ========================================
+      // CHECK EMAIL STATUS
+      // ========================================
+      if (response.data?.emailSent === true) {
+        console.log("======================================");
+        console.log("📧 EMAIL STATUS");
+        console.log("======================================");
+        console.log("✅ Welcome email was sent successfully.");
+        console.log(
+          "📩 Email sent to:",
+          response.data?.owner?.email
+        );
+
+        showNotification(
+          "🎉 Account created! Welcome email sent successfully.",
+          "success"
+        );
+      } else if (response.data?.emailSent === false) {
+        console.warn("======================================");
+        console.warn("⚠️ EMAIL STATUS");
+        console.warn("======================================");
+        console.warn(
+          "Account was created, but the welcome email was NOT sent."
+        );
+        console.warn(
+          "Email error:",
+          response.data?.emailError
+        );
+
+        showNotification(
+          "Account created, but the welcome email could not be sent.",
+          "error"
+        );
+      } else {
+        console.warn("======================================");
+        console.warn("⚠️ EMAIL STATUS UNKNOWN");
+        console.warn("======================================");
+        console.warn(
+          "Backend did not return emailSent."
+        );
+
+        showNotification(
+          "🎉 Account created successfully.",
+          "success"
+        );
+      }
+
+      console.log("======================================");
+      console.log("🏁 REGISTRATION FINISHED");
+      console.log("======================================");
+
+      // Redirect after 2 seconds
+      setTimeout(() => {
+        navigate("/login");
+      }, 2000);
+
+    } catch (error) {
+      // ========================================
+      // AXIOS ERROR
+      // ========================================
+      console.error("======================================");
+      console.error("❌ REGISTRATION ERROR");
+      console.error("======================================");
+
+      console.error("Full error:", error);
+
+      console.error(
+        "HTTP Status:",
+        error.response?.status
+      );
+
+      console.error(
+        "Backend response:",
+        error.response?.data
+      );
+
+      console.error(
+        "Request URL:",
+        error.config?.url
+      );
+
+      console.error(
+        "Request Method:",
+        error.config?.method
+      );
+
+      console.error(
+        "Network error:",
+        error.message
+      );
+
+      // Get backend error message
+      const message =
+        error.response?.data?.error ||
+        error.response?.data?.message ||
+        "Registration failed. Please try again.";
+
       showNotification(message, "error");
+
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 relative">
+    <div className="min-h-screen bg-gray-100">
+
+      {/* ========================================
+          NAVBAR
+      ======================================== */}
       <Navbar />
 
-      {/* Notification */}
+      {/* ========================================
+          NOTIFICATION
+      ======================================== */}
       {notification.visible && (
         <div
-          className={`fixed top-5 right-5 z-50 px-6 py-4 rounded-lg shadow-lg text-white ${
-            notification.type === "success" ? "bg-green-500" : "bg-red-500"
+          className={`fixed top-5 right-5 z-50 px-6 py-4 rounded-lg shadow-lg text-white max-w-md ${
+            notification.type === "success"
+              ? "bg-green-500"
+              : "bg-red-500"
           } animate-slide-in`}
         >
           {notification.message}
         </div>
       )}
 
+      {/* ========================================
+          REGISTER FORM
+      ======================================== */}
       <div className="flex items-center justify-center py-10 px-4">
+
         <div className="w-full max-w-md bg-white p-8 rounded-2xl shadow-xl">
 
           <h2 className="text-3xl font-bold text-center mb-2 text-gray-800">
@@ -127,95 +330,179 @@ const Register = () => {
             Create your owner account
           </p>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form
+            onSubmit={handleSubmit}
+            className="space-y-4"
+          >
 
-            <input
-              type="text"
-              name="firstName"
-              placeholder="First Name"
-              value={formData.firstName}
-              onChange={handleChange}
-              className={`w-full border px-4 py-3 rounded-lg ${
-                errors.firstName ? "border-red-500" : "border-gray-300"
-              }`}
-            />
-            {errors.firstName && <p className="text-red-500 text-sm">{errors.firstName}</p>}
+            {/* FIRST NAME */}
+            <div>
+              <input
+                type="text"
+                name="firstName"
+                placeholder="First Name"
+                value={formData.firstName}
+                onChange={handleChange}
+                disabled={loading}
+                className={`w-full border px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-blue-400 ${
+                  errors.firstName
+                    ? "border-red-500"
+                    : "border-gray-300"
+                }`}
+              />
 
-            <input
-              type="text"
-              name="lastName"
-              placeholder="Last Name"
-              value={formData.lastName}
-              onChange={handleChange}
-              className={`w-full border px-4 py-3 rounded-lg ${
-                errors.lastName ? "border-red-500" : "border-gray-300"
-              }`}
-            />
-            {errors.lastName && <p className="text-red-500 text-sm">{errors.lastName}</p>}
+              {errors.firstName && (
+                <p className="text-red-500 text-sm mt-1">
+                  {errors.firstName}
+                </p>
+              )}
+            </div>
 
-            <input
-              type="email"
-              name="email"
-              placeholder="Email Address"
-              value={formData.email}
-              onChange={handleChange}
-              className={`w-full border px-4 py-3 rounded-lg ${
-                errors.email ? "border-red-500" : "border-gray-300"
-              }`}
-            />
-            {errors.email && <p className="text-red-500 text-sm">{errors.email}</p>}
+            {/* LAST NAME */}
+            <div>
+              <input
+                type="text"
+                name="lastName"
+                placeholder="Last Name"
+                value={formData.lastName}
+                onChange={handleChange}
+                disabled={loading}
+                className={`w-full border px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-blue-400 ${
+                  errors.lastName
+                    ? "border-red-500"
+                    : "border-gray-300"
+                }`}
+              />
 
-            <input
-              type="text"
-              name="phoneNumber"
-              placeholder="Phone Number"
-              value={formData.phoneNumber}
-              onChange={handleChange}
-              className={`w-full border px-4 py-3 rounded-lg ${
-                errors.phoneNumber ? "border-red-500" : "border-gray-300"
-              }`}
-            />
-            {errors.phoneNumber && <p className="text-red-500 text-sm">{errors.phoneNumber}</p>}
+              {errors.lastName && (
+                <p className="text-red-500 text-sm mt-1">
+                  {errors.lastName}
+                </p>
+              )}
+            </div>
 
-            <input
-              type="password"
-              name="password"
-              placeholder="Password"
-              value={formData.password}
-              onChange={handleChange}
-              className={`w-full border px-4 py-3 rounded-lg ${
-                errors.password ? "border-red-500" : "border-gray-300"
-              }`}
-            />
-            {errors.password && <p className="text-red-500 text-sm">{errors.password}</p>}
+            {/* EMAIL */}
+            <div>
+              <input
+                type="email"
+                name="email"
+                placeholder="Email Address"
+                value={formData.email}
+                onChange={handleChange}
+                disabled={loading}
+                className={`w-full border px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-blue-400 ${
+                  errors.email
+                    ? "border-red-500"
+                    : "border-gray-300"
+                }`}
+              />
 
-            <input
-              type="password"
-              name="confirmPassword"
-              placeholder="Confirm Password"
-              value={formData.confirmPassword}
-              onChange={handleChange}
-              className={`w-full border px-4 py-3 rounded-lg ${
-                errors.confirmPassword ? "border-red-500" : "border-gray-300"
-              }`}
-            />
-            {errors.confirmPassword && <p className="text-red-500 text-sm">{errors.confirmPassword}</p>}
+              {errors.email && (
+                <p className="text-red-500 text-sm mt-1">
+                  {errors.email}
+                </p>
+              )}
+            </div>
 
+            {/* PHONE */}
+            <div>
+              <input
+                type="text"
+                name="phoneNumber"
+                placeholder="Phone Number"
+                value={formData.phoneNumber}
+                onChange={handleChange}
+                disabled={loading}
+                className={`w-full border px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-blue-400 ${
+                  errors.phoneNumber
+                    ? "border-red-500"
+                    : "border-gray-300"
+                }`}
+              />
+
+              {errors.phoneNumber && (
+                <p className="text-red-500 text-sm mt-1">
+                  {errors.phoneNumber}
+                </p>
+              )}
+            </div>
+
+            {/* PASSWORD */}
+            <div>
+              <input
+                type="password"
+                name="password"
+                placeholder="Password"
+                value={formData.password}
+                onChange={handleChange}
+                disabled={loading}
+                className={`w-full border px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-blue-400 ${
+                  errors.password
+                    ? "border-red-500"
+                    : "border-gray-300"
+                }`}
+              />
+
+              {errors.password && (
+                <p className="text-red-500 text-sm mt-1">
+                  {errors.password}
+                </p>
+              )}
+            </div>
+
+            {/* CONFIRM PASSWORD */}
+            <div>
+              <input
+                type="password"
+                name="confirmPassword"
+                placeholder="Confirm Password"
+                value={formData.confirmPassword}
+                onChange={handleChange}
+                disabled={loading}
+                className={`w-full border px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-blue-400 ${
+                  errors.confirmPassword
+                    ? "border-red-500"
+                    : "border-gray-300"
+                }`}
+              />
+
+              {errors.confirmPassword && (
+                <p className="text-red-500 text-sm mt-1">
+                  {errors.confirmPassword}
+                </p>
+              )}
+            </div>
+
+            {/* SUBMIT */}
             <button
               type="submit"
               disabled={loading}
-              className={`w-full py-3 rounded-lg text-white font-semibold ${
-                loading ? "bg-blue-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
+              className={`w-full py-3 rounded-lg text-white font-semibold transition ${
+                loading
+                  ? "bg-blue-400 cursor-not-allowed"
+                  : "bg-blue-600 hover:bg-blue-700"
               }`}
             >
-              {loading ? "Creating..." : "Create Owner Account"}
+              {loading
+                ? "Creating..."
+                : "Create Owner Account"}
             </button>
 
+            {/* LOGIN */}
             <p className="text-center text-sm mt-4">
               Already have an account?{" "}
+
               <span
-                onClick={() => navigate("/login")}
-                className="text-blue-600 cursor-pointer"
+                onClick={() => {
+                  if (!loading) {
+                    navigate("/login");
+                  }
+                }}
+                className={`text-blue-600 cursor-pointer hover:underline ${
+                  loading
+                    ? "opacity-50 cursor-not-allowed"
+                    : ""
+                }`}
               >
                 Login
               </span>
@@ -225,13 +512,23 @@ const Register = () => {
         </div>
       </div>
 
-      {/* Tailwind animation for notification */}
+      {/* ========================================
+          ANIMATION
+      ======================================== */}
       <style>
         {`
           @keyframes slide-in {
-            0% { transform: translateX(100%); opacity: 0; }
-            100% { transform: translateX(0); opacity: 1; }
+            0% {
+              transform: translateX(100%);
+              opacity: 0;
+            }
+
+            100% {
+              transform: translateX(0);
+              opacity: 1;
+            }
           }
+
           .animate-slide-in {
             animation: slide-in 0.5s ease-out forwards;
           }
