@@ -29,60 +29,32 @@ const EMAIL_USER = process.env.EMAIL_USER;
 const EMAIL_PASS = process.env.EMAIL_PASS;
 
 const FRONTEND_URL =
-    process.env.FRONTEND_URL ||
-    "http://localhost:3000";
+    process.env.FRONTEND_URL || "http://localhost:3000";
 
 console.log("=================================");
-console.log("📧 DUKAFASTA EMAIL SERVICE");
+console.log("📧 EMAIL CONFIGURATION");
 console.log("=================================");
-console.log(
-    "EMAIL_USER:",
-    EMAIL_USER || "NOT SET"
-);
-console.log(
-    "EMAIL_PASS exists:",
-    Boolean(EMAIL_PASS)
-);
-console.log(
-    "FRONTEND_URL:",
-    FRONTEND_URL
-);
+console.log("EMAIL_USER:", EMAIL_USER || "NOT SET");
+console.log("EMAIL_PASS exists:", Boolean(EMAIL_PASS));
+console.log("FRONTEND_URL:", FRONTEND_URL);
 console.log("=================================");
-
-if (!EMAIL_USER) {
-    console.error(
-        "❌ EMAIL_USER is missing from .env"
-    );
-}
-
-if (!EMAIL_PASS) {
-    console.error(
-        "❌ EMAIL_PASS is missing from .env"
-    );
-}
 
 // =====================================================
 // SMTP TRANSPORTER
-// =====================================================
-//
-// Port 465 = TLS immediately
-// family: 4 = force IPv4
-//
-// Short timeouts prevent a failed SMTP connection
-// from making the application wait for a long time.
-//
-// Pooling keeps SMTP connections available for reuse.
 // =====================================================
 
 const transporter = nodemailer.createTransport({
 
     host: "smtp.gmail.com",
 
+    // Gmail SMTP SSL
     port: 465,
 
+    // SSL/TLS
     secure: true,
 
-    // IMPORTANT
+    // VERY IMPORTANT
+    // Force IPv4
     family: 4,
 
     auth: {
@@ -90,16 +62,16 @@ const transporter = nodemailer.createTransport({
         pass: EMAIL_PASS
     },
 
-    // Short timeouts
-    connectionTimeout: 8000,
-    greetingTimeout: 8000,
-    socketTimeout: 12000,
-    dnsTimeout: 5000,
-
-    // SMTP connection pooling
+    // Keep connection alive
     pool: true,
+
     maxConnections: 2,
-    maxMessages: 50,
+    maxMessages: 100,
+
+    // Short timeouts
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
 
     tls: {
         servername: "smtp.gmail.com",
@@ -108,7 +80,7 @@ const transporter = nodemailer.createTransport({
 });
 
 // =====================================================
-// GENERIC SEND MAIL
+// SEND MAIL
 // =====================================================
 
 async function sendMail({
@@ -118,27 +90,24 @@ async function sendMail({
     html
 }) {
 
-    try {
+    if (!EMAIL_USER || !EMAIL_PASS) {
 
-        if (!EMAIL_USER || !EMAIL_PASS) {
-            throw new Error(
-                "EMAIL_USER or EMAIL_PASS is missing."
-            );
-        }
-
-        if (!to) {
-            throw new Error(
-                "Recipient email is required."
-            );
-        }
-
-        const mailOptions = {
-            from: `"DukaFasta" <${EMAIL_USER}>`,
-            to,
-            subject,
-            text,
-            html
+        return {
+            success: false,
+            error:
+                "EMAIL_USER or EMAIL_PASS is missing from .env"
         };
+    }
+
+    if (!to) {
+
+        return {
+            success: false,
+            error: "Recipient email is required"
+        };
+    }
+
+    try {
 
         console.log("=================================");
         console.log("📧 SENDING EMAIL");
@@ -146,100 +115,88 @@ async function sendMail({
         console.log("Subject:", subject);
         console.log("=================================");
 
-        const info =
-            await transporter.sendMail(
-                mailOptions
-            );
+        const info = await transporter.sendMail({
+
+            from: `"DukaFasta" <${EMAIL_USER}>`,
+
+            to,
+
+            subject,
+
+            text,
+
+            html
+        });
 
         console.log("=================================");
         console.log("✅ EMAIL SENT");
         console.log("To:", to);
-        console.log(
-            "Message ID:",
-            info.messageId
-        );
-        console.log(
-            "Accepted:",
-            info.accepted
-        );
+        console.log("Message ID:", info.messageId);
         console.log("=================================");
 
         return {
+
             success: true,
+
             email: to,
-            messageId:
-                info.messageId || null,
-            accepted:
-                info.accepted || [],
-            rejected:
-                info.rejected || []
+
+            messageId: info.messageId || null,
+
+            accepted: info.accepted || [],
+
+            rejected: info.rejected || []
         };
 
     } catch (error) {
 
         console.error("=================================");
         console.error("❌ EMAIL FAILED");
-        console.error("To:", to);
-        console.error(
-            "Message:",
-            error.message
-        );
-        console.error(
-            "Code:",
-            error.code || null
-        );
-        console.error(
-            "Command:",
-            error.command || null
-        );
+        console.error("Message:", error.message);
+        console.error("Code:", error.code || null);
         console.error("=================================");
 
-        let friendlyError =
-            error.message ||
-            "Email sending failed.";
+        let friendlyError = error.message;
 
-        if (
-            error.code === "ETIMEDOUT"
-        ) {
+        if (error.code === "ENETUNREACH") {
+
+            friendlyError =
+                "Gmail SMTP network connection failed. IPv4 connection is required.";
+        }
+
+        if (error.code === "ETIMEDOUT") {
+
             friendlyError =
                 "Gmail SMTP connection timed out.";
-        }
-
-        if (
-            error.code === "ENETUNREACH"
-        ) {
-            friendlyError =
-                "Network cannot reach Gmail SMTP over IPv4.";
-        }
-
-        if (
-            error.code === "ECONNECTION"
-        ) {
-            friendlyError =
-                "Could not connect to Gmail SMTP.";
         }
 
         if (
             error.code === "EAUTH" ||
             error.responseCode === 535
         ) {
+
             friendlyError =
                 "Gmail authentication failed. Check EMAIL_USER and EMAIL_PASS.";
         }
 
         return {
+
             success: false,
-            email: to || null,
+
+            email: to,
+
             messageId: null,
+
             error: friendlyError,
+
             details: error.message,
+
             code: error.code || null
         };
     }
 }
 
 // =====================================================
-// EMAIL SERVICE CLASS
+// EMAIL SERVICE
 // =====================================================
 
 class EmailService {
@@ -256,26 +213,25 @@ class EmailService {
 
         try {
 
-            if (
-                !shopkeeper ||
-                !shopkeeper.email
-            ) {
+            if (!shopkeeper?.email) {
+
                 throw new Error(
-                    "Shopkeeper email is missing."
+                    "Shopkeeper email is missing"
                 );
             }
 
             if (!password) {
+
                 throw new Error(
-                    "Shopkeeper password is missing."
+                    "Shopkeeper password is missing"
                 );
             }
 
-            const shopkeeperName =
+            const name =
                 shopkeeper.firstName ||
                 "Shopkeeper";
 
-            const creatorName =
+            const creator =
                 ownerName ||
                 "DukaFasta Administrator";
 
@@ -285,19 +241,14 @@ class EmailService {
             const subject =
                 "DukaFasta Shopkeeper Account";
 
-            // =================================================
-            // TEXT EMAIL
-            // =================================================
-
             const text = `
-Hello ${shopkeeperName},
+Hello ${name},
 
 Your DukaFasta shopkeeper account has been created.
 
-Created by: ${creatorName}
+Created by: ${creator}
 
 LOGIN DETAILS
-=============
 
 Email: ${shopkeeper.email}
 Password: ${password}
@@ -310,10 +261,6 @@ Please change your password after your first login.
 DukaFasta Team
 `;
 
-            // =================================================
-            // HTML EMAIL
-            // =================================================
-
             const html = `
 <!DOCTYPE html>
 
@@ -323,35 +270,35 @@ DukaFasta Team
 
 <meta charset="UTF-8">
 
-<meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0"
->
+<meta name="viewport"
+content="width=device-width,initial-scale=1.0">
 
 <title>DukaFasta Shopkeeper Account</title>
 
 </head>
 
 <body style="
-    margin:0;
-    padding:0;
-    background:#f3f4f6;
-    font-family:Arial,Helvetica,sans-serif;
+margin:0;
+padding:30px;
+background:#f5f5f5;
+font-family:Arial,sans-serif;
 ">
 
 <div style="
-    max-width:600px;
-    margin:30px auto;
-    background:#ffffff;
-    border-radius:12px;
-    padding:30px;
+max-width:600px;
+margin:auto;
+background:white;
+padding:30px;
+border-radius:12px;
 ">
 
 <h1 style="
-    text-align:center;
-    color:#2563eb;
+text-align:center;
+color:#2563eb;
 ">
+
 DukaFasta
+
 </h1>
 
 <h2>
@@ -359,24 +306,18 @@ Shopkeeper Account Created
 </h2>
 
 <p>
-Hello <strong>${shopkeeperName}</strong>,
+Hello <strong>${name}</strong>,
 </p>
 
 <p>
-Your DukaFasta shopkeeper account has been
-created successfully.
-</p>
-
-<p>
-Created by:
-<strong>${creatorName}</strong>
+You have been added as a shopkeeper by
+<strong>${creator}</strong>.
 </p>
 
 <div style="
-    background:#f3f4f6;
-    padding:20px;
-    border-radius:10px;
-    margin:25px 0;
+background:#f3f4f6;
+padding:20px;
+border-radius:8px;
 ">
 
 <p>
@@ -391,59 +332,55 @@ ${password}
 
 </div>
 
-<p style="
-    color:#dc2626;
-">
+<p style="color:#dc2626;">
 
-<strong>Security:</strong>
-
-Please change your password after your
-first login.
+<strong>Important:</strong>
+Please change your password after your first login.
 
 </p>
 
 <div style="
-    text-align:center;
-    margin:30px 0;
+text-align:center;
+margin:30px 0;
 ">
 
-<a
-    href="${loginUrl}"
-    style="
-        display:inline-block;
-        padding:13px 25px;
-        background:#2563eb;
-        color:#ffffff;
-        text-decoration:none;
-        border-radius:7px;
-        font-weight:bold;
-    "
->
+<a href="${loginUrl}"
+style="
+display:inline-block;
+background:#2563eb;
+color:white;
+text-decoration:none;
+padding:14px 25px;
+border-radius:7px;
+">
+
 Login to DukaFasta
+
 </a>
 
 </div>
 
 <p>
-Login address:
-</p>
 
-<p>
+Login address:
+
+<br>
+
 <a href="${loginUrl}">
 ${loginUrl}
 </a>
+
 </p>
 
 <hr>
 
 <p style="
-    text-align:center;
-    color:#777;
-    font-size:12px;
+text-align:center;
+font-size:12px;
+color:#777;
 ">
 
-© ${new Date().getFullYear()}
-DukaFasta
+© ${new Date().getFullYear()} DukaFasta
 
 </p>
 
@@ -454,20 +391,18 @@ DukaFasta
 </html>
 `;
 
-            // =================================================
-            // SEND ONCE
-            // =================================================
-            //
             // IMPORTANT:
-            // No 3 retries here.
-            //
-            // The route will call this in the background.
-            // =================================================
+            // Only ONE attempt.
+            // No 3 retries and no delays.
 
             return await sendMail({
+
                 to: shopkeeper.email,
+
                 subject,
+
                 text,
+
                 html
             });
 
@@ -479,79 +414,62 @@ DukaFasta
             );
 
             return {
+
                 success: false,
+
                 email:
-                    shopkeeper?.email ||
-                    null,
-                messageId: null,
-                error:
-                    error.message
+                    shopkeeper?.email || null,
+
+                error: error.message
             };
         }
     }
 
     // =================================================
-    // OWNER WELCOME EMAIL
+    // WELCOME EMAIL
     // =================================================
 
     async sendWelcomeEmail(user) {
 
         try {
 
-            if (
-                !user ||
-                !user.email
-            ) {
+            if (!user?.email) {
+
                 throw new Error(
-                    "User email is missing."
+                    "User email is missing"
                 );
             }
 
-            const firstName =
-                user.firstName ||
-                "Customer";
+            const name =
+                user.firstName || "Customer";
 
             const subject =
                 "Welcome to DukaFasta 🎉";
 
             const text = `
-Hello ${firstName},
+Hello ${name},
 
 Your DukaFasta account has been created successfully.
 
-You can now log in and start using DukaFasta.
+You can now log in and start shopping.
 
 DukaFasta Team
 `;
 
             const html = `
-<!DOCTYPE html>
-
-<html>
-
-<body style="
-    font-family:Arial,sans-serif;
-    background:#f3f4f6;
-    padding:30px;
-">
-
 <div style="
-    max-width:600px;
-    margin:auto;
-    background:#ffffff;
-    padding:30px;
-    border-radius:10px;
+font-family:Arial,sans-serif;
+max-width:600px;
+margin:auto;
+padding:30px;
 ">
 
-<h1 style="
-    color:#2563eb;
-    text-align:center;
-">
+<h1 style="color:#2563eb;">
 Welcome to DukaFasta!
 </h1>
 
 <p>
-Hello <strong>${firstName}</strong>,
+Hello <strong>${name}</strong>,
 </p>
 
 <p>
@@ -559,49 +477,45 @@ Your DukaFasta account has been created successfully.
 </p>
 
 <p>
-You can now log in and start using DukaFasta.
+You can now log in and start shopping.
 </p>
 
 <hr>
 
 <p style="
-    text-align:center;
-    color:#777;
-    font-size:12px;
+text-align:center;
+color:#777;
+font-size:12px;
 ">
 
-© ${new Date().getFullYear()}
-DukaFasta
+© ${new Date().getFullYear()} DukaFasta
 
 </p>
 
 </div>
-
-</body>
-
-</html>
 `;
 
             return await sendMail({
+
                 to: user.email,
+
                 subject,
+
                 text,
+
                 html
             });
 
         } catch (error) {
 
-            console.error(
-                "❌ Welcome email error:",
-                error.message
-            );
-
             return {
+
                 success: false,
+
                 email:
                     user?.email || null,
-                error:
-                    error.message
+
+                error: error.message
             };
         }
     }
@@ -618,21 +532,8 @@ DukaFasta
 
         try {
 
-            if (!email) {
-                throw new Error(
-                    "Email address is missing."
-                );
-            }
-
-            if (!otp) {
-                throw new Error(
-                    "OTP is missing."
-                );
-            }
-
             const name =
-                firstName ||
-                "Customer";
+                firstName || "Customer";
 
             const subject =
                 "Password Reset OTP - DukaFasta";
@@ -640,41 +541,24 @@ DukaFasta
             const text = `
 Hello ${name},
 
-Your DukaFasta password reset code is:
+Your DukaFasta verification code is:
 
 ${otp}
 
-This code will expire in 10 minutes.
-
-If you did not request this code,
-please ignore this email.
+This code expires in 10 minutes.
 
 DukaFasta Team
 `;
 
             const html = `
-<!DOCTYPE html>
-
-<html>
-
-<body style="
-    font-family:Arial,sans-serif;
-    background:#f3f4f6;
-    padding:30px;
-">
-
 <div style="
-    max-width:600px;
-    margin:auto;
-    background:#ffffff;
-    padding:30px;
-    border-radius:10px;
+font-family:Arial,sans-serif;
+max-width:600px;
+margin:auto;
+padding:30px;
 ">
 
-<h1 style="
-    color:#2563eb;
-    text-align:center;
-">
+<h1 style="color:#2563eb;">
 DukaFasta
 </h1>
 
@@ -687,21 +571,16 @@ Hello <strong>${name}</strong>,
 </p>
 
 <p>
-Your password reset verification code is:
+Your verification code is:
 </p>
 
 <div style="
-    background:#f3f4f6;
-    padding:25px;
-    text-align:center;
-    border-radius:10px;
-">
-
-<div style="
-    font-size:36px;
-    font-weight:bold;
-    color:#2563eb;
-    letter-spacing:8px;
+font-size:36px;
+font-weight:bold;
+letter-spacing:8px;
+color:#2563eb;
+text-align:center;
+padding:20px;
 ">
 
 ${otp}
@@ -713,33 +592,28 @@ This code expires in 10 minutes.
 </p>
 
 </div>
-
-<p>
-If you did not request this code,
-please ignore this email.
-</p>
-
-</div>
-
-</body>
-
-</html>
 `;
 
             return await sendMail({
+
                 to: email,
+
                 subject,
+
                 text,
+
                 html
             });
 
         } catch (error) {
 
             return {
+
                 success: false,
-                email: email || null,
-                error:
-                    error.message
+
+                email,
+
+                error: error.message
             };
         }
     }
@@ -755,15 +629,8 @@ please ignore this email.
 
         try {
 
-            if (!email) {
-                throw new Error(
-                    "Email address is missing."
-                );
-            }
-
             const name =
-                firstName ||
-                "Customer";
+                firstName || "Customer";
 
             const subject =
                 "Password Changed Successfully - DukaFasta";
@@ -773,34 +640,20 @@ Hello ${name},
 
 Your DukaFasta password has been changed successfully.
 
-If you did not make this change,
-please contact support immediately.
+If you did not make this change, contact support immediately.
 
 DukaFasta Team
 `;
 
             const html = `
-<!DOCTYPE html>
-
-<html>
-
-<body style="
-    font-family:Arial,sans-serif;
-    background:#f3f4f6;
-    padding:30px;
-">
-
 <div style="
-    max-width:600px;
-    margin:auto;
-    background:#ffffff;
-    padding:30px;
-    border-radius:10px;
+font-family:Arial,sans-serif;
+max-width:600px;
+margin:auto;
+padding:30px;
 ">
 
-<h2 style="
-    color:#2563eb;
-">
+<h2 style="color:#2563eb;">
 Password Changed Successfully
 </h2>
 
@@ -812,49 +665,36 @@ Hello <strong>${name}</strong>,
 Your DukaFasta password has been changed successfully.
 </p>
 
-<p style="
-    color:#dc2626;
-">
+<p style="color:#dc2626;">
 
 If you did not make this change,
-please contact support immediately.
-
-</p>
-
-<hr>
-
-<p style="
-    text-align:center;
-    color:#777;
-    font-size:12px;
-">
-
-© ${new Date().getFullYear()}
-DukaFasta
+contact support immediately.
 
 </p>
 
 </div>
-
-</body>
-
-</html>
 `;
 
             return await sendMail({
+
                 to: email,
+
                 subject,
+
                 text,
+
                 html
             });
 
         } catch (error) {
 
             return {
+
                 success: false,
-                email: email || null,
-                error:
-                    error.message
+
+                email,
+
+                error: error.message
             };
         }
     }
@@ -867,124 +707,41 @@ DukaFasta
         testEmail
     ) {
 
-        if (!testEmail) {
-            return {
-                success: false,
-                error:
-                    "Test email is required."
-            };
-        }
-
         return await sendMail({
 
             to: testEmail,
 
-            subject:
-                "DukaFasta Email Test",
+            subject: "DukaFasta Email Test",
 
             text: `
-This is a test email from DukaFasta.
+DukaFasta Gmail SMTP test.
 
-If you received this message,
-Gmail SMTP is working.
+If you received this email,
+your SMTP configuration is working.
 `,
 
             html: `
 <div style="
-    font-family:Arial,sans-serif;
-    padding:30px;
+font-family:Arial,sans-serif;
+padding:30px;
 ">
 
-<h2 style="
-    color:#2563eb;
-">
+<h2 style="color:#2563eb;">
 DukaFasta Email Test
 </h2>
 
 <p>
-This is a test email from DukaFasta.
-</p>
-
-<p>
-<strong>
-Gmail SMTP is working.
-</strong>
+Gmail SMTP is working correctly.
 </p>
 
 </div>
 `
         });
     }
-
-    // =================================================
-    // VERIFY SMTP
-    // =================================================
-
-    async verify() {
-
-        try {
-
-            console.log(
-                "🔄 Checking Gmail SMTP..."
-            );
-
-            await transporter.verify();
-
-            console.log(
-                "✅ Gmail SMTP is ready."
-            );
-
-            return true;
-
-        } catch (error) {
-
-            console.error(
-                "❌ Gmail SMTP verification failed:"
-            );
-
-            console.error(
-                error.message
-            );
-
-            console.error(
-                "Code:",
-                error.code || null
-            );
-
-            return false;
-        }
-    }
 }
-
-// =====================================================
-// CREATE SINGLE EMAIL SERVICE INSTANCE
-// =====================================================
-
-const emailService =
-    new EmailService();
-
-// =====================================================
-// VERIFY IN BACKGROUND
-// =====================================================
-
-setTimeout(() => {
-
-    emailService
-        .verify()
-        .catch(error => {
-
-            console.error(
-                "SMTP verification error:",
-                error.message
-            );
-
-        });
-
-}, 1000);
 
 // =====================================================
 // EXPORT
 // =====================================================
 
-module.exports =
-    emailService;
+module.exports = new EmailService();
