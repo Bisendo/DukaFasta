@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import Navbar from "../../Components/Navbar";
 import axios from "axios";
-import { FiLogOut, FiUsers, FiBox, FiShoppingCart, FiPlus, FiBarChart2, FiDollarSign } from "react-icons/fi";
+import { FiLogOut, FiUsers, FiBox, FiShoppingCart, FiPlus, FiBarChart2, FiDollarSign, FiMail, FiAlertCircle, FiCheckCircle } from "react-icons/fi";
 
 const OwnerDashboard = () => {
   const navigate = useNavigate();
@@ -17,6 +17,7 @@ const OwnerDashboard = () => {
     totalRevenue: 0
   });
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
   const [shopkeepersList, setShopkeepersList] = useState([]);
   const [productsList, setProductsList] = useState([]);
@@ -28,9 +29,32 @@ const OwnerDashboard = () => {
   const [showSaleModal, setShowSaleModal] = useState(false);
 
   // Forms
-  const [shopkeeperForm, setShopkeeperForm] = useState({ firstName: "", lastName: "", email: "", phoneNumber: "", password: "" });
-  const [productForm, setProductForm] = useState({ name: "", buyPrice: "", sellPrice: "", quantity: "" });
-  const [saleForm, setSaleForm] = useState({ productId: "", quantity: "", shopkeeperId: "" });
+  const [shopkeeperForm, setShopkeeperForm] = useState({ 
+    firstName: "", 
+    lastName: "", 
+    email: "", 
+    phoneNumber: "", 
+    password: "" 
+  });
+  const [productForm, setProductForm] = useState({ 
+    name: "", 
+    buyPrice: "", 
+    sellPrice: "", 
+    quantity: "" 
+  });
+  const [saleForm, setSaleForm] = useState({ 
+    productId: "", 
+    quantity: "", 
+    shopkeeperId: "" 
+  });
+
+  // Toast notification state
+  const [toast, setToast] = useState({ 
+    show: false, 
+    message: '', 
+    type: '', 
+    details: '' 
+  });
 
   // Format TZS currency
   const formatTZS = (amount) => {
@@ -42,9 +66,16 @@ const OwnerDashboard = () => {
     }).format(amount).replace('TZS', 'TSh');
   };
 
+  // Show toast notification
+  const showToast = (message, type = 'success', details = '') => {
+    setToast({ show: true, message, type, details });
+    setTimeout(() => {
+      setToast({ show: false, message: '', type: '', details: '' });
+    }, 8000);
+  };
+
   // Calculate totals from products and sales
   const calculateTotals = (products, sales) => {
-    // Calculate total buy price and sell price from products (based on quantity)
     const totalBuyPrice = products.reduce((acc, product) =>
       acc + ((product.buyPrice || 0) * (product.quantity || 0)), 0
     );
@@ -53,7 +84,6 @@ const OwnerDashboard = () => {
       acc + ((product.sellPrice || 0) * (product.quantity || 0)), 0
     );
 
-    // Calculate total revenue and profit from sales
     let totalRevenue = 0;
     let totalProfit = 0;
 
@@ -77,23 +107,39 @@ const OwnerDashboard = () => {
     });
   };
 
+  // Enhanced getArrayData to handle different response structures
   const getArrayData = (response) => {
+    // If response is already an array
     if (Array.isArray(response)) {
       return response;
     }
 
-    if (Array.isArray(response?.data)) {
+    // If response has a data property that is an array
+    if (response && Array.isArray(response.data)) {
       return response.data;
     }
 
-    if (Array.isArray(response?.results)) {
+    // If response has a shopkeepers property (for shopkeepers endpoint)
+    if (response && Array.isArray(response.shopkeepers)) {
+      return response.shopkeepers;
+    }
+
+    // If response has a results property
+    if (response && Array.isArray(response.results)) {
       return response.results;
     }
 
-    if (Array.isArray(response?.items)) {
+    // If response has an items property
+    if (response && Array.isArray(response.items)) {
       return response.items;
     }
 
+    // If response has a users property
+    if (response && Array.isArray(response.users)) {
+      return response.users;
+    }
+
+    // Return empty array if no data found
     return [];
   };
 
@@ -145,9 +191,10 @@ const OwnerDashboard = () => {
         const products = getArrayData(productsRes.data);
         const sales = getArrayData(salesRes.data);
 
-        console.log("Shopkeepers API:", shopkeepersRes.data);
-        console.log("Products API:", productsRes.data);
-        console.log("Sales API:", salesRes.data);
+        console.log("Shopkeepers API Response:", shopkeepersRes.data);
+        console.log("Shopkeepers Array:", shopkeepers);
+        console.log("Products API Response:", productsRes.data);
+        console.log("Sales API Response:", salesRes.data);
 
         // Store arrays
         setShopkeepersList(shopkeepers);
@@ -194,37 +241,91 @@ const OwnerDashboard = () => {
   const handleProductChange = e => setProductForm({ ...productForm, [e.target.name]: e.target.value });
   const handleSaleChange = e => setSaleForm({ ...saleForm, [e.target.name]: e.target.value });
 
-  // Submit Shopkeeper
+  // Submit Shopkeeper with proper email handling
   const submitShopkeeper = async e => {
     e.preventDefault();
+    setSubmitting(true);
+
     try {
       const token = localStorage.getItem("authToken");
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
       const res = await axios.post(`${API_BASE_URL}/users/shopkeeper/${owner.id}`, shopkeeperForm);
 
-      alert("Shopkeeper created successfully! Email notification sent.");
-      setShopkeepersList(prev => [...prev, res.data.shopkeeper]);
-      setStats(prev => ({ ...prev, shopkeepers: prev.shopkeepers + 1 }));
+      console.log("Shopkeeper creation response:", res.data);
+
+      // Check email status from response
+      const emailSent = res.data.emailSent || false;
+      const emailError = res.data.emailError || null;
+      const shopkeeper = res.data.shopkeeper;
+
+      // Update shopkeepers list
+      if (shopkeeper) {
+        setShopkeepersList(prev => [...prev, shopkeeper]);
+        setStats(prev => ({ ...prev, shopkeepers: prev.shopkeepers + 1 }));
+      }
+
+      // Reset form and close modal
       setShopkeeperForm({ firstName: "", lastName: "", email: "", phoneNumber: "", password: "" });
       setShowShopkeeperModal(false);
 
+      // Show appropriate message based on email status
+      if (emailSent) {
+        showToast(
+          `✅ Shopkeeper ${shopkeeper?.firstName || ''} ${shopkeeper?.lastName || ''} created successfully!`,
+          'success',
+          `📧 Login credentials sent to ${shopkeeper?.email || ''}`
+        );
+      } else {
+        showToast(
+          `⚠️ Shopkeeper ${shopkeeper?.firstName || ''} ${shopkeeper?.lastName || ''} created, but email could not be sent.`,
+          'warning',
+          emailError || 'Please check your email configuration and try again.'
+        );
+      }
+
     } catch (err) {
-      console.error(err);
-      alert(err.response?.data?.error || "Failed to create shopkeeper");
+      console.error("Shopkeeper creation error:", err);
+      
+      // Detailed error handling
+      let errorMessage = "Failed to create shopkeeper";
+      let errorDetails = "";
+
+      if (err.response) {
+        errorMessage = err.response.data?.error || err.response.data?.message || errorMessage;
+        errorDetails = err.response.data?.details || '';
+        
+        // Check for email-specific errors
+        if (errorMessage.toLowerCase().includes('email') || errorDetails.toLowerCase().includes('email')) {
+          errorMessage = "Email configuration error: " + errorMessage;
+        }
+      } else if (err.request) {
+        errorMessage = "Network error: Could not connect to the server";
+        errorDetails = "Please check your internet connection and try again.";
+      } else {
+        errorMessage = err.message || errorMessage;
+      }
+
+      showToast(`❌ ${errorMessage}`, 'error', errorDetails);
+
+    } finally {
+      setSubmitting(false);
     }
   };
 
   // Submit Product
   const submitProduct = async e => {
     e.preventDefault();
+    setSubmitting(true);
+
     try {
       const token = localStorage.getItem("authToken");
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
       const res = await axios.post(`${API_BASE_URL}/products/${owner.id}`, productForm);
 
-      alert("Product created successfully!");
+      showToast(`✅ Product "${res.data.name}" created successfully!`, 'success');
+      
       const updatedProducts = [...productsList, res.data];
       setProductsList(updatedProducts);
       setStats(prev => ({ ...prev, products: prev.products + 1 }));
@@ -236,20 +337,24 @@ const OwnerDashboard = () => {
 
     } catch (err) {
       console.error(err);
-      alert(err.response?.data?.error || "Failed to create product");
+      showToast(`❌ ${err.response?.data?.error || "Failed to create product"}`, 'error');
+    } finally {
+      setSubmitting(false);
     }
   };
 
   // Submit Sale
   const submitSale = async e => {
     e.preventDefault();
+    setSubmitting(true);
+
     try {
       const token = localStorage.getItem("authToken");
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
       const res = await axios.post(`${API_BASE_URL}/sales`, saleForm);
 
-      alert("Sale created successfully!");
+      showToast(`✅ Sale created successfully!`, 'success');
 
       // Update sales list
       const updatedSales = [...salesList, res.data];
@@ -270,7 +375,9 @@ const OwnerDashboard = () => {
 
     } catch (err) {
       console.error(err);
-      alert(err.response?.data?.error || err.response?.data?.message || "Failed to create sale");
+      showToast(`❌ ${err.response?.data?.error || err.response?.data?.message || "Failed to create sale"}`, 'error');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -279,6 +386,50 @@ const OwnerDashboard = () => {
   return (
     <div className="min-h-screen bg-gray-100">
       <Navbar />
+
+      {/* Toast Notification */}
+      {toast.show && (
+        <div className={`fixed top-4 right-4 z-50 max-w-md w-full shadow-lg rounded-lg overflow-hidden transition-all duration-300 transform animate-slide-in`}>
+          <div className={`p-4 ${
+            toast.type === 'success' ? 'bg-green-50 border-l-4 border-green-500' : 
+            toast.type === 'warning' ? 'bg-yellow-50 border-l-4 border-yellow-500' : 
+            'bg-red-50 border-l-4 border-red-500'
+          }`}>
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                {toast.type === 'success' && <FiCheckCircle className="h-5 w-5 text-green-500" />}
+                {toast.type === 'warning' && <FiAlertCircle className="h-5 w-5 text-yellow-500" />}
+                {toast.type === 'error' && <FiAlertCircle className="h-5 w-5 text-red-500" />}
+              </div>
+              <div className="ml-3 flex-1">
+                <p className={`text-sm font-medium ${
+                  toast.type === 'success' ? 'text-green-800' : 
+                  toast.type === 'warning' ? 'text-yellow-800' : 
+                  'text-red-800'
+                }`}>
+                  {toast.message}
+                </p>
+                {toast.details && (
+                  <p className={`text-xs mt-1 ${
+                    toast.type === 'success' ? 'text-green-700' : 
+                    toast.type === 'warning' ? 'text-yellow-700' : 
+                    'text-red-700'
+                  }`}>
+                    {toast.details}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => setToast({ show: false, message: '', type: '', details: '' })}
+                className="ml-4 flex-shrink-0 text-gray-400 hover:text-gray-500"
+              >
+                <span className="sr-only">Close</span>
+                <span className="text-xl">&times;</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="p-6 sm:p-10">
         {/* Header with Report Link */}
@@ -307,23 +458,29 @@ const OwnerDashboard = () => {
               <h2 className="text-2xl font-bold mb-2">Welcome, {owner.firstName} {owner.lastName}!</h2>
               <p className="text-blue-100 mb-1">Email: {owner.email}</p>
               <p className="text-blue-100">Role: {owner.role}</p>
+              <p className="text-blue-100 text-sm mt-2">
+                Total Shopkeepers: {shopkeepersList.length}
+              </p>
             </div>
             <div className="flex gap-3 flex-wrap">
               <button
                 onClick={() => setShowShopkeeperModal(true)}
                 className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-5 py-3 rounded-lg font-semibold transition-all duration-200 shadow-md"
+                disabled={submitting}
               >
                 <FiPlus /> Add Shopkeeper
               </button>
               <button
                 onClick={() => setShowProductModal(true)}
                 className="flex items-center gap-2 bg-yellow-500 hover:bg-yellow-600 text-white px-5 py-3 rounded-lg font-semibold transition-all duration-200"
+                disabled={submitting}
               >
                 <FiPlus /> Add Product
               </button>
               <button
                 onClick={() => setShowSaleModal(true)}
                 className="flex items-center gap-2 bg-purple-500 hover:bg-purple-600 text-white px-5 py-3 rounded-lg font-semibold transition-all duration-200"
+                disabled={submitting}
               >
                 <FiPlus /> New Sale
               </button>
@@ -337,7 +494,9 @@ const OwnerDashboard = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-500 text-sm">Total Shopkeepers</p>
-                <h3 className="text-3xl font-bold text-gray-800">{loading ? "..." : stats.shopkeepers}</h3>
+                <h3 className="text-3xl font-bold text-gray-800">
+                  {loading ? "..." : stats.shopkeepers}
+                </h3>
               </div>
               <div className="bg-blue-100 p-3 rounded-full">
                 <FiUsers className="text-3xl text-blue-600" />
@@ -352,7 +511,9 @@ const OwnerDashboard = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-500 text-sm">Total Products</p>
-                <h3 className="text-3xl font-bold text-gray-800">{loading ? "..." : stats.products}</h3>
+                <h3 className="text-3xl font-bold text-gray-800">
+                  {loading ? "..." : stats.products}
+                </h3>
               </div>
               <div className="bg-green-100 p-3 rounded-full">
                 <FiBox className="text-3xl text-green-600" />
@@ -367,7 +528,9 @@ const OwnerDashboard = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-500 text-sm">Total Sales</p>
-                <h3 className="text-3xl font-bold text-gray-800">{loading ? "..." : stats.sales}</h3>
+                <h3 className="text-3xl font-bold text-gray-800">
+                  {loading ? "..." : stats.sales}
+                </h3>
               </div>
               <div className="bg-purple-100 p-3 rounded-full">
                 <FiShoppingCart className="text-3xl text-purple-600" />
@@ -379,7 +542,7 @@ const OwnerDashboard = () => {
           </div>
         </div>
 
-        {/* Financial Summary Cards - New Row */}
+        {/* Financial Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <div className="bg-gradient-to-br from-yellow-400 to-yellow-600 p-6 rounded-2xl shadow-lg text-white">
             <div className="flex items-center gap-3 mb-2">
@@ -420,7 +583,7 @@ const OwnerDashboard = () => {
 
         {/* Shopkeepers List */}
         <DataTable
-          title="Shopkeepers"
+          title={`Shopkeepers (${shopkeepersList.length})`}
           data={shopkeepersList}
           columns={["Name", "Email", "Phone", "Role", "Status"]}
           renderCell={(item, column) => {
@@ -431,8 +594,9 @@ const OwnerDashboard = () => {
             if (column === "Status") {
               const salesCount = salesList.filter(s => s.shopkeeperId === item.id).length;
               return (
-                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${salesCount > 0 ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                  }`}>
+                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                  salesCount > 0 ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                }`}>
                   {salesCount > 0 ? 'Active' : 'Inactive'}
                 </span>
               );
@@ -443,7 +607,7 @@ const OwnerDashboard = () => {
 
         {/* Products List */}
         <DataTable
-          title="Products"
+          title={`Products (${productsList.length})`}
           data={productsList}
           columns={["Name", "Buy Price (TSh)", "Sell Price (TSh)", "Quantity", "Total Value (TSh)", "Status"]}
           renderCell={(item, column) => {
@@ -480,7 +644,7 @@ const OwnerDashboard = () => {
 
         {/* Sales List */}
         <DataTable
-          title="Recent Sales"
+          title={`Recent Sales (${salesList.length})`}
           data={Array.isArray(salesList) ? salesList.slice(0, 10) : []}
           columns={[
             "Product",
@@ -549,7 +713,7 @@ const OwnerDashboard = () => {
 
             return "—";
           }}
-        />
+        />                                                                                                                                          
 
         {salesList.length > 10 && (
           <div className="text-center mb-8">
@@ -567,14 +731,79 @@ const OwnerDashboard = () => {
       {showShopkeeperModal && (
         <Modal title="Create Shopkeeper" onClose={() => setShowShopkeeperModal(false)}>
           <form className="flex flex-col gap-4" onSubmit={submitShopkeeper}>
-            <input type="text" name="firstName" placeholder="First Name" value={shopkeeperForm.firstName} onChange={handleShopkeeperChange} required className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" />
-            <input type="text" name="lastName" placeholder="Last Name" value={shopkeeperForm.lastName} onChange={handleShopkeeperChange} required className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" />
-            <input type="email" name="email" placeholder="Email" value={shopkeeperForm.email} onChange={handleShopkeeperChange} required className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" />
-            <input type="text" name="phoneNumber" placeholder="Phone" value={shopkeeperForm.phoneNumber} onChange={handleShopkeeperChange} required className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" />
-            <input type="password" name="password" placeholder="Password" value={shopkeeperForm.password} onChange={handleShopkeeperChange} required className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" />
+            <input 
+              type="text" 
+              name="firstName" 
+              placeholder="First Name" 
+              value={shopkeeperForm.firstName} 
+              onChange={handleShopkeeperChange} 
+              required 
+              className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" 
+              disabled={submitting}
+            />
+            <input 
+              type="text" 
+              name="lastName" 
+              placeholder="Last Name" 
+              value={shopkeeperForm.lastName} 
+              onChange={handleShopkeeperChange} 
+              required 
+              className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" 
+              disabled={submitting}
+            />
+            <input 
+              type="email" 
+              name="email" 
+              placeholder="Email" 
+              value={shopkeeperForm.email} 
+              onChange={handleShopkeeperChange} 
+              required 
+              className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" 
+              disabled={submitting}
+            />
+            <input 
+              type="text" 
+              name="phoneNumber" 
+              placeholder="Phone" 
+              value={shopkeeperForm.phoneNumber} 
+              onChange={handleShopkeeperChange} 
+              required 
+              className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" 
+              disabled={submitting}
+            />
+            <input 
+              type="password" 
+              name="password" 
+              placeholder="Password" 
+              value={shopkeeperForm.password} 
+              onChange={handleShopkeeperChange} 
+              required 
+              className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" 
+              disabled={submitting}
+            />
             <div className="flex justify-end gap-2 mt-2">
-              <button type="button" onClick={() => setShowShopkeeperModal(false)} className="px-4 py-2 border rounded-lg hover:bg-gray-100">Cancel</button>
-              <button type="submit" className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg">Create</button>
+              <button 
+                type="button" 
+                onClick={() => setShowShopkeeperModal(false)} 
+                className="px-4 py-2 border rounded-lg hover:bg-gray-100"
+                disabled={submitting}
+              >
+                Cancel
+              </button>
+              <button 
+                type="submit" 
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                disabled={submitting}
+              >
+                {submitting ? (
+                  <>
+                    <span className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white"></span>
+                    Creating...
+                  </>
+                ) : (
+                  'Create'
+                )}
+              </button>
             </div>
           </form>
         </Modal>
@@ -583,13 +812,69 @@ const OwnerDashboard = () => {
       {showProductModal && (
         <Modal title="Create Product" onClose={() => setShowProductModal(false)}>
           <form className="flex flex-col gap-4" onSubmit={submitProduct}>
-            <input type="text" name="name" placeholder="Product Name" value={productForm.name} onChange={handleProductChange} required className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" />
-            <input type="number" name="buyPrice" placeholder="Buy Price (TSh)" value={productForm.buyPrice} onChange={handleProductChange} required className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" />
-            <input type="number" name="sellPrice" placeholder="Sell Price (TSh)" value={productForm.sellPrice} onChange={handleProductChange} required className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" />
-            <input type="number" name="quantity" placeholder="Quantity" value={productForm.quantity} onChange={handleProductChange} required className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" />
+            <input 
+              type="text" 
+              name="name" 
+              placeholder="Product Name" 
+              value={productForm.name} 
+              onChange={handleProductChange} 
+              required 
+              className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              disabled={submitting}
+            />
+            <input 
+              type="number" 
+              name="buyPrice" 
+              placeholder="Buy Price (TSh)" 
+              value={productForm.buyPrice} 
+              onChange={handleProductChange} 
+              required 
+              className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              disabled={submitting}
+            />
+            <input 
+              type="number" 
+              name="sellPrice" 
+              placeholder="Sell Price (TSh)" 
+              value={productForm.sellPrice} 
+              onChange={handleProductChange} 
+              required 
+              className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              disabled={submitting}
+            />
+            <input 
+              type="number" 
+              name="quantity" 
+              placeholder="Quantity" 
+              value={productForm.quantity} 
+              onChange={handleProductChange} 
+              required 
+              className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              disabled={submitting}
+            />
             <div className="flex justify-end gap-2 mt-2">
-              <button type="button" onClick={() => setShowProductModal(false)} className="px-4 py-2 border rounded-lg hover:bg-gray-100">Cancel</button>
-              <button type="submit" className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg">Create</button>
+              <button 
+                type="button" 
+                onClick={() => setShowProductModal(false)} 
+                className="px-4 py-2 border rounded-lg hover:bg-gray-100"
+                disabled={submitting}
+              >
+                Cancel
+              </button>
+              <button 
+                type="submit" 
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                disabled={submitting}
+              >
+                {submitting ? (
+                  <>
+                    <span className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white"></span>
+                    Creating...
+                  </>
+                ) : (
+                  'Create'
+                )}
+              </button>
             </div>
           </form>
         </Modal>
@@ -598,7 +883,14 @@ const OwnerDashboard = () => {
       {showSaleModal && (
         <Modal title="Create Sale" onClose={() => setShowSaleModal(false)}>
           <form className="flex flex-col gap-4" onSubmit={submitSale}>
-            <select name="productId" value={saleForm.productId} onChange={handleSaleChange} required className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+            <select 
+              name="productId" 
+              value={saleForm.productId} 
+              onChange={handleSaleChange} 
+              required 
+              className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              disabled={submitting}
+            >
               <option value="">Select Product</option>
               {productsList.filter(p => p.quantity > 0).map(p => (
                 <option key={p.id} value={p.id}>
@@ -606,14 +898,51 @@ const OwnerDashboard = () => {
                 </option>
               ))}
             </select>
-            <select name="shopkeeperId" value={saleForm.shopkeeperId} onChange={handleSaleChange} required className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+            <select 
+              name="shopkeeperId" 
+              value={saleForm.shopkeeperId} 
+              onChange={handleSaleChange} 
+              required 
+              className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              disabled={submitting}
+            >
               <option value="">Select Shopkeeper</option>
               {shopkeepersList.map(sk => <option key={sk.id} value={sk.id}>{sk.firstName} {sk.lastName}</option>)}
             </select>
-            <input type="number" name="quantity" placeholder="Quantity" value={saleForm.quantity} onChange={handleSaleChange} required min="1" className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" />
+            <input 
+              type="number" 
+              name="quantity" 
+              placeholder="Quantity" 
+              value={saleForm.quantity} 
+              onChange={handleSaleChange} 
+              required 
+              min="1" 
+              className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              disabled={submitting}
+            />
             <div className="flex justify-end gap-2 mt-2">
-              <button type="button" onClick={() => setShowSaleModal(false)} className="px-4 py-2 border rounded-lg hover:bg-gray-100">Cancel</button>
-              <button type="submit" className="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg">Create Sale</button>
+              <button 
+                type="button" 
+                onClick={() => setShowSaleModal(false)} 
+                className="px-4 py-2 border rounded-lg hover:bg-gray-100"
+                disabled={submitting}
+              >
+                Cancel
+              </button>
+              <button 
+                type="submit" 
+                className="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                disabled={submitting}
+              >
+                {submitting ? (
+                  <>
+                    <span className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white"></span>
+                    Creating...
+                  </>
+                ) : (
+                  'Create Sale'
+                )}
+              </button>
             </div>
           </form>
         </Modal>
@@ -647,20 +976,17 @@ const DataTable = ({
 
   return (
     <div className="bg-white p-6 rounded-2xl shadow-md mb-8">
-
       <h2 className="text-xl font-semibold mb-4">
         {title}
       </h2>
 
       {safeData.length === 0 ? (
         <p className="text-gray-500">
-          No {title.toLowerCase()} yet.
+          No {title.toLowerCase().replace(/\(\d+\)/, '').trim()} yet.
         </p>
       ) : (
         <div className="overflow-x-auto">
-
           <table className="min-w-full table-auto border border-gray-200 rounded-lg">
-
             <thead className="bg-gray-100">
               <tr>
                 {columns.map((col) => (
@@ -697,12 +1023,9 @@ const DataTable = ({
                 </tr>
               ))}
             </tbody>
-
           </table>
-
         </div>
       )}
-
     </div>
   );
 };
