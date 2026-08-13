@@ -11,453 +11,271 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 
 const { User } = require("../models");
-const EmailService =
-    require("../Services/emailService");
+const EmailService = require("../Services/emailService");
 
 // =====================================================
 // CONFIGURATION
 // =====================================================
 
-const JWT_SECRET =
-    process.env.JWT_SECRET;
+const JWT_SECRET = process.env.JWT_SECRET;
 
 if (!JWT_SECRET) {
-
-    console.warn(
-        "⚠️ JWT_SECRET is not configured."
-    );
-
+    console.warn("⚠️ JWT_SECRET is not configured.");
 }
 
 // =====================================================
 // HELPERS
 // =====================================================
 
-const cleanString = (value) => {
-
-    if (
-        value === undefined ||
-        value === null
-    ) {
-
+function cleanString(value) {
+    if (value === undefined || value === null) {
         return "";
-
     }
 
     return String(value).trim();
+}
 
-};
-
-const cleanEmail = (email) => {
-
-    return cleanString(email)
-        .toLowerCase();
-
-};
+function cleanEmail(email) {
+    return cleanString(email).toLowerCase();
+}
 
 // =====================================================
 // LOGIN
 // POST /users/login
 // =====================================================
 
-router.post(
-    "/login",
-    async (req, res) => {
+router.post("/login", async (req, res) => {
+    try {
+        const email = cleanEmail(req.body.email);
+        const password = cleanString(req.body.password);
 
-        try {
-
-            const email =
-                cleanEmail(
-                    req.body.email
-                );
-
-            const password =
-                cleanString(
-                    req.body.password
-                );
-
-            if (!email || !password) {
-
-                return res.status(400).json({
-
-                    success: false,
-
-                    error:
-                        "Email and password are required"
-
-                });
-
-            }
-
-            const user =
-                await User.findOne({
-
-                    where: {
-                        email
-                    }
-
-                });
-
-            if (!user) {
-
-                return res.status(404).json({
-
-                    success: false,
-
-                    error:
-                        "User not found"
-
-                });
-
-            }
-
-            const passwordMatch =
-                await bcrypt.compare(
-                    password,
-                    user.password
-                );
-
-            if (!passwordMatch) {
-
-                return res.status(401).json({
-
-                    success: false,
-
-                    error:
-                        "Invalid email or password"
-
-                });
-
-            }
-
-            if (!JWT_SECRET) {
-
-                return res.status(500).json({
-
-                    success: false,
-
-                    error:
-                        "JWT_SECRET is not configured"
-
-                });
-
-            }
-
-            const token =
-                jwt.sign(
-
-                    {
-
-                        id:
-                            user.id,
-
-                        role:
-                            user.role,
-
-                        email:
-                            user.email,
-
-                        firstName:
-                            user.firstName
-
-                    },
-
-                    JWT_SECRET,
-
-                    {
-                        expiresIn: "7d"
-                    }
-
-                );
-
-            return res.status(200).json({
-
-                success: true,
-
-                message:
-                    "Login successful",
-
-                token,
-
-                user: {
-
-                    id:
-                        user.id,
-
-                    role:
-                        user.role,
-
-                    email:
-                        user.email,
-
-                    firstName:
-                        user.firstName,
-
-                    lastName:
-                        user.lastName,
-
-                    phoneNumber:
-                        user.phoneNumber,
-
-                    ownerId:
-                        user.ownerId
-
-                }
-
-            });
-
-        } catch (error) {
-
-            console.error(
-                "❌ Login error:",
-                error
-            );
-
-            return res.status(500).json({
-
+        if (!email || !password) {
+            return res.status(400).json({
                 success: false,
-
-                error:
-                    "Internal server error"
-
+                error: "Email and password are required"
             });
-
         }
 
+        const user = await User.findOne({
+            where: {
+                email
+            }
+        });
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                error: "User not found"
+            });
+        }
+
+        const passwordMatch = await bcrypt.compare(
+            password,
+            user.password
+        );
+
+        if (!passwordMatch) {
+            return res.status(401).json({
+                success: false,
+                error: "Invalid email or password"
+            });
+        }
+
+        if (!JWT_SECRET) {
+            return res.status(500).json({
+                success: false,
+                error: "JWT_SECRET is not configured"
+            });
+        }
+
+        const token = jwt.sign(
+            {
+                id: user.id,
+                role: user.role,
+                email: user.email,
+                firstName: user.firstName
+            },
+            JWT_SECRET,
+            {
+                expiresIn: "7d"
+            }
+        );
+
+        return res.status(200).json({
+            success: true,
+            message: "Login successful",
+            token,
+            user: {
+                id: user.id,
+                role: user.role,
+                email: user.email,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                phoneNumber: user.phoneNumber,
+                ownerId: user.ownerId
+            }
+        });
+
+    } catch (error) {
+        console.error("❌ Login error:", error);
+
+        return res.status(500).json({
+            success: false,
+            error: "Internal server error"
+        });
     }
-);
+});
 
 // =====================================================
 // CREATE OWNER
 // POST /users/owner
 // =====================================================
 
-router.post(
-    "/owner",
-    async (req, res) => {
-
-        try {
-
-            const firstName =
-                cleanString(
-                    req.body.firstName
-                );
-
-            const lastName =
-                cleanString(
-                    req.body.lastName
-                );
-
-            const email =
-                cleanEmail(
-                    req.body.email
-                );
-
-            const phoneNumber =
-                cleanString(
-                    req.body.phoneNumber
-                );
-
-            const password =
-                cleanString(
-                    req.body.password
-                );
-
-            if (
-                !firstName ||
-                !lastName ||
-                !email ||
-                !phoneNumber ||
-                !password
-            ) {
-
-                return res.status(400).json({
-
-                    success: false,
-
-                    error:
-                        "All fields are required"
-
-                });
-
-            }
-
-            if (
-                password.length < 6
-            ) {
-
-                return res.status(400).json({
-
-                    success: false,
-
-                    error:
-                        "Password must be at least 6 characters"
-
-                });
-
-            }
-
-            const existingUser =
-                await User.findOne({
-
-                    where: {
-                        email
-                    }
-
-                });
-
-            if (existingUser) {
-
-                return res.status(409).json({
-
-                    success: false,
-
-                    error:
-                        "Email already exists"
-
-                });
-
-            }
-
-            const hashedPassword =
-                await bcrypt.hash(
-                    password,
-                    10
-                );
-
-            const owner =
-                await User.create({
-
-                    firstName,
-
-                    lastName,
-
-                    email,
-
-                    phoneNumber,
-
-                    password:
-                        hashedPassword,
-
-                    role:
-                        "owner"
-
-                });
-
-            console.log(
-                `✅ Owner created: ${owner.email}`
-            );
-
-            // -------------------------------------------------
-            // Send owner email in background.
-            // Owner creation stays fast.
-            // -------------------------------------------------
-
-            setImmediate(async () => {
-
-                try {
-
-                    const result =
-                        await EmailService
-                            .sendWelcomeEmail(
-                                owner
-                            );
-
-                    if (
-                        result.success
-                    ) {
-
-                        console.log(
-                            `✅ Welcome email sent to ${owner.email}`
-                        );
-
-                    } else {
-
-                        console.error(
-                            `❌ Welcome email failed: ${result.error}`
-                        );
-
-                    }
-
-                } catch (error) {
-
-                    console.error(
-                        "❌ Background owner email error:",
-                        error.message
-                    );
-
-                }
-
-            });
-
-            return res.status(201).json({
-
-                success: true,
-
-                message:
-                    "Owner created successfully. Welcome email is being sent.",
-
-                emailSent:
-                    "processing",
-
-                owner: {
-
-                    id:
-                        owner.id,
-
-                    firstName:
-                        owner.firstName,
-
-                    lastName:
-                        owner.lastName,
-
-                    email:
-                        owner.email,
-
-                    phoneNumber:
-                        owner.phoneNumber,
-
-                    role:
-                        owner.role,
-
-                    createdAt:
-                        owner.createdAt
-
-                }
-
-            });
-
-        } catch (error) {
-
-            console.error(
-                "❌ Owner creation error:",
-                error
-            );
-
-            return res.status(500).json({
-
+router.post("/owner", async (req, res) => {
+    try {
+        const firstName = cleanString(req.body.firstName);
+        const lastName = cleanString(req.body.lastName);
+        const email = cleanEmail(req.body.email);
+        const phoneNumber = cleanString(req.body.phoneNumber);
+        const password = cleanString(req.body.password);
+
+        if (
+            !firstName ||
+            !lastName ||
+            !email ||
+            !phoneNumber ||
+            !password
+        ) {
+            return res.status(400).json({
                 success: false,
-
-                error:
-                    error.message ||
-                    "Failed to create owner"
-
+                error: "All fields are required"
             });
-
         }
 
+        if (password.length < 6) {
+            return res.status(400).json({
+                success: false,
+                error: "Password must be at least 6 characters"
+            });
+        }
+
+        const existingUser = await User.findOne({
+            where: {
+                email
+            }
+        });
+
+        if (existingUser) {
+            return res.status(409).json({
+                success: false,
+                error: "Email already exists"
+            });
+        }
+
+        const hashedPassword = await bcrypt.hash(
+            password,
+            10
+        );
+
+        const owner = await User.create({
+            firstName,
+            lastName,
+            email,
+            phoneNumber,
+            password: hashedPassword,
+            role: "owner"
+        });
+
+        console.log(
+            `✅ Owner created successfully: ${owner.email}`
+        );
+
+        // =================================================
+        // WELCOME EMAIL
+        // =================================================
+        //
+        // Owner creation does NOT wait for email.
+        // This keeps owner creation fast.
+        //
+        // =================================================
+
+        setImmediate(async () => {
+            try {
+                const result =
+                    await EmailService.sendWelcomeEmail(
+                        owner
+                    );
+
+                if (result.success) {
+                    console.log(
+                        `✅ Welcome email sent to ${owner.email}`
+                    );
+                } else {
+                    console.error(
+                        `❌ Welcome email failed for ${owner.email}:`,
+                        result.error
+                    );
+                }
+
+            } catch (error) {
+                console.error(
+                    "❌ Background owner email error:",
+                    error.message
+                );
+            }
+        });
+
+        return res.status(201).json({
+            success: true,
+            message:
+                "Owner created successfully. Welcome email is being sent.",
+            emailSent: "processing",
+            owner: {
+                id: owner.id,
+                firstName: owner.firstName,
+                lastName: owner.lastName,
+                email: owner.email,
+                phoneNumber: owner.phoneNumber,
+                role: owner.role,
+                createdAt: owner.createdAt
+            }
+        });
+
+    } catch (error) {
+        console.error(
+            "❌ Owner creation error:",
+            error
+        );
+
+        return res.status(500).json({
+            success: false,
+            error:
+                error.message ||
+                "Failed to create owner"
+        });
     }
-);
+});
 
 // =====================================================
 // CREATE SHOPKEEPER
 // POST /users/shopkeeper/:ownerId
+// =====================================================
 //
 // IMPORTANT:
-// This endpoint WAITS for Gmail.
-// Therefore emailSent will be:
-// true  = email accepted by Gmail
-// false = email failed
+//
+// 1. Shopkeeper is created in MySQL first.
+// 2. Email is then sent.
+// 3. We WAIT for Gmail.
+// 4. Response tells frontend exactly:
+//
+//    emailSent: true
+//
+//    OR
+//
+//    emailSent: false
+//
+// No "processing" response.
+//
 // =====================================================
 
 router.post(
@@ -468,14 +286,18 @@ router.post(
 
             console.log("");
             console.log(
-                "======================================"
+                "========================================"
             );
             console.log(
-                "🚀 CREATE SHOPKEEPER"
+                "🚀 SHOPKEEPER CREATION STARTED"
             );
             console.log(
-                "======================================"
+                "========================================"
             );
+
+            // =================================================
+            // READ INPUT
+            // =================================================
 
             const firstName =
                 cleanString(
@@ -521,27 +343,18 @@ router.post(
             ) {
 
                 return res.status(400).json({
-
                     success: false,
-
-                    error:
-                        "All fields are required"
-
+                    error: "All fields are required"
                 });
 
             }
 
-            if (
-                password.length < 6
-            ) {
+            if (password.length < 6) {
 
                 return res.status(400).json({
-
                     success: false,
-
                     error:
                         "Password must be at least 6 characters"
-
                 });
 
             }
@@ -558,12 +371,8 @@ router.post(
             if (!owner) {
 
                 return res.status(404).json({
-
                     success: false,
-
-                    error:
-                        "Owner not found"
-
+                    error: "Owner not found"
                 });
 
             }
@@ -573,38 +382,30 @@ router.post(
             ) {
 
                 return res.status(400).json({
-
                     success: false,
-
                     error:
                         "Selected user is not an owner"
-
                 });
 
             }
 
             // =================================================
-            // CHECK EMAIL
+            // CHECK DUPLICATE EMAIL
             // =================================================
 
             const existingUser =
                 await User.findOne({
-
                     where: {
                         email
                     }
-
                 });
 
             if (existingUser) {
 
                 return res.status(409).json({
-
                     success: false,
-
                     error:
                         "Email already exists"
-
                 });
 
             }
@@ -645,12 +446,21 @@ router.post(
 
                 });
 
+            console.log("");
             console.log(
-                `✅ Shopkeeper created: ${shopkeeper.email}`
+                "✅ SHOPKEEPER CREATED IN DATABASE"
+            );
+            console.log(
+                "ID:",
+                shopkeeper.id
+            );
+            console.log(
+                "Email:",
+                shopkeeper.email
             );
 
             // =================================================
-            // EMAIL DATA
+            // PREPARE EMAIL DATA
             // =================================================
 
             const shopkeeperEmailData = {
@@ -676,22 +486,16 @@ router.post(
             };
 
             const ownerName =
-                `${owner.firstName} ${owner.lastName}`
-                    .trim();
+                `${owner.firstName || ""} ${
+                    owner.lastName || ""
+                }`.trim() ||
+                "DukaFasta Administrator";
 
             // =================================================
-            // SEND EMAIL AND WAIT FOR RESULT
-            // =================================================
-            //
-            // THIS IS THE IMPORTANT CHANGE.
-            //
-            // Do NOT use setImmediate().
-            // Do NOT return "processing".
-            //
-            // We wait until Gmail responds.
-            //
+            // SEND EMAIL
             // =================================================
 
+            console.log("");
             console.log(
                 "📧 Sending shopkeeper credentials..."
             );
@@ -713,26 +517,26 @@ router.post(
                 emailResult.success === true
             ) {
 
+                console.log("");
                 console.log(
-                    "======================================"
+                    "========================================"
                 );
-
                 console.log(
-                    "✅ SHOPKEEPER + EMAIL SUCCESS"
+                    "🎉 SHOPKEEPER CREATED + EMAIL SENT"
                 );
-
                 console.log(
-                    "To:",
+                    "========================================"
+                );
+                console.log(
+                    "Shopkeeper:",
                     shopkeeper.email
                 );
-
                 console.log(
                     "Message ID:",
                     emailResult.messageId
                 );
-
                 console.log(
-                    "======================================"
+                    "========================================"
                 );
 
                 return res.status(201).json({
@@ -781,34 +585,41 @@ router.post(
                     }
 
                 });
-
             }
 
             // =================================================
-            // SHOPKEEPER CREATED BUT EMAIL FAILED
+            // EMAIL FAILED
             // =================================================
 
+            console.error("");
             console.error(
-                "======================================"
+                "========================================"
             );
-
             console.error(
                 "⚠️ SHOPKEEPER CREATED BUT EMAIL FAILED"
             );
-
             console.error(
-                "Email:",
+                "========================================"
+            );
+            console.error(
+                "Shopkeeper:",
                 shopkeeper.email
             );
-
             console.error(
-                "Error:",
+                "Email error:",
                 emailResult?.error
             );
-
             console.error(
-                "======================================"
+                "========================================"
             );
+
+            // -------------------------------------------------
+            // IMPORTANT:
+            //
+            // Do NOT delete the shopkeeper.
+            //
+            // The account has already been successfully created.
+            // -------------------------------------------------
 
             return res.status(201).json({
 
@@ -859,20 +670,19 @@ router.post(
 
         } catch (error) {
 
+            console.error("");
             console.error(
-                "======================================"
+                "========================================"
             );
-
             console.error(
                 "❌ SHOPKEEPER CREATION ERROR"
             );
-
             console.error(
-                error
+                "========================================"
             );
-
+            console.error(error);
             console.error(
-                "======================================"
+                "========================================"
             );
 
             return res.status(500).json({
@@ -901,9 +711,10 @@ router.get(
 
         try {
 
-            const {
-                ownerId
-            } = req.params;
+            const ownerId =
+                cleanString(
+                    req.params.ownerId
+                );
 
             const shopkeepers =
                 await User.findAll({
@@ -979,6 +790,7 @@ router.get(
 
 // =====================================================
 // GET USER BY ID
+// GET /users/:id
 // =====================================================
 
 router.get(
@@ -987,15 +799,15 @@ router.get(
 
         try {
 
-            const {
-                id
-            } = req.params;
+            const id =
+                cleanString(
+                    req.params.id
+                );
 
             const user =
                 await User.findByPk(
                     id,
                     {
-
                         attributes: [
 
                             "id",
@@ -1015,7 +827,6 @@ router.get(
                             "createdAt"
 
                         ]
-
                     }
                 );
 
@@ -1063,6 +874,7 @@ router.get(
 
 // =====================================================
 // SEND OTP
+// POST /users/send-otp
 // =====================================================
 
 router.post(
@@ -1116,7 +928,9 @@ router.post(
 
             }
 
-            // OTP should wait for email result.
+            console.log(
+                `📧 Sending OTP to ${email}...`
+            );
 
             const result =
                 await EmailService
@@ -1131,13 +945,24 @@ router.post(
                 result.success !== true
             ) {
 
+                console.error(
+                    "❌ OTP email failed:",
+                    result?.error
+                );
+
                 return res.status(500).json({
 
                     success: false,
 
                     error:
                         result?.error ||
-                        "Failed to send OTP"
+                        "Failed to send OTP",
+
+                    emailSent:
+                        false,
+
+                    emailMessageId:
+                        null
 
                 });
 
@@ -1172,7 +997,10 @@ router.post(
 
                 error:
                     error.message ||
-                    "Failed to send OTP"
+                    "Failed to send OTP",
+
+                emailSent:
+                    false
 
             });
 
@@ -1183,6 +1011,7 @@ router.post(
 
 // =====================================================
 // RESET PASSWORD
+// POST /users/reset-password
 // =====================================================
 
 router.post(
@@ -1267,7 +1096,9 @@ router.post(
 
             });
 
-            // Background confirmation email.
+            // =================================================
+            // SEND PASSWORD CONFIRMATION IN BACKGROUND
+            // =================================================
 
             setImmediate(async () => {
 
@@ -1280,9 +1111,7 @@ router.post(
                                 user.firstName
                             );
 
-                    if (
-                        result.success
-                    ) {
+                    if (result.success) {
 
                         console.log(
                             `✅ Password confirmation email sent to ${email}`
@@ -1291,7 +1120,8 @@ router.post(
                     } else {
 
                         console.error(
-                            `❌ Password confirmation email failed: ${result.error}`
+                            `❌ Password confirmation email failed for ${email}:`,
+                            result.error
                         );
 
                     }
