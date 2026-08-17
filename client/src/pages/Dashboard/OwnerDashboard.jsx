@@ -3,7 +3,18 @@ import React, { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import Navbar from "../../Components/Navbar";
 import axios from "axios";
-import { FiLogOut, FiUsers, FiBox, FiShoppingCart, FiPlus, FiBarChart2, FiDollarSign, FiMail, FiAlertCircle, FiCheckCircle } from "react-icons/fi";
+import { 
+  FiLogOut, 
+  FiUsers, 
+  FiBox, 
+  FiShoppingCart, 
+  FiPlus, 
+  FiBarChart2, 
+  FiDollarSign, 
+  FiAlertCircle, 
+  FiCheckCircle,
+  FiRefreshCw
+} from "react-icons/fi";
 
 const OwnerDashboard = () => {
   const navigate = useNavigate();
@@ -18,6 +29,7 @@ const OwnerDashboard = () => {
   });
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const [shopkeepersList, setShopkeepersList] = useState([]);
   const [productsList, setProductsList] = useState([]);
@@ -109,37 +121,30 @@ const OwnerDashboard = () => {
 
   // Enhanced getArrayData to handle different response structures
   const getArrayData = (response) => {
-    // If response is already an array
     if (Array.isArray(response)) {
       return response;
     }
 
-    // If response has a data property that is an array
     if (response && Array.isArray(response.data)) {
       return response.data;
     }
 
-    // If response has a shopkeepers property (for shopkeepers endpoint)
     if (response && Array.isArray(response.shopkeepers)) {
       return response.shopkeepers;
     }
 
-    // If response has a results property
     if (response && Array.isArray(response.results)) {
       return response.results;
     }
 
-    // If response has an items property
     if (response && Array.isArray(response.items)) {
       return response.items;
     }
 
-    // If response has a users property
     if (response && Array.isArray(response.users)) {
       return response.users;
     }
 
-    // Return empty array if no data found
     return [];
   };
 
@@ -230,6 +235,58 @@ const OwnerDashboard = () => {
     fetchData();
   }, [navigate]);
 
+  // Refresh data
+  const refreshData = async () => {
+    setRefreshing(true);
+    const storedUser = localStorage.getItem("user");
+    if (!storedUser) {
+      navigate("/login");
+      return;
+    }
+
+    let parsedUser;
+    try {
+      parsedUser = JSON.parse(storedUser);
+    } catch (error) {
+      console.error("Invalid user data:", error);
+      localStorage.clear();
+      navigate("/login");
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem("authToken");
+      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+
+      const [shopkeepersRes, productsRes, salesRes] = await Promise.all([
+        axios.get(`${API_BASE_URL}/users/shopkeepers/${parsedUser.id}`),
+        axios.get(`${API_BASE_URL}/products/${parsedUser.id}`),
+        axios.get(`${API_BASE_URL}/sales/owner/${parsedUser.id}`)
+      ]);
+
+      const shopkeepers = getArrayData(shopkeepersRes.data);
+      const products = getArrayData(productsRes.data);
+      const sales = getArrayData(salesRes.data);
+
+      setShopkeepersList(shopkeepers);
+      setProductsList(products);
+      setSalesList(sales);
+      setStats({
+        shopkeepers: shopkeepers.length,
+        products: products.length,
+        sales: sales.length,
+      });
+      calculateTotals(products, sales);
+
+      showToast('Data refreshed successfully!', 'success');
+    } catch (err) {
+      console.error("Error refreshing data:", err);
+      showToast('Failed to refresh data', 'error', err.message);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   // Logout
   const handleLogout = () => {
     localStorage.clear();
@@ -254,13 +311,33 @@ const OwnerDashboard = () => {
 
       console.log("Shopkeeper creation response:", res.data);
 
-      // Check email status from response
-      const emailSent = res.data.emailSent || false;
-      const emailError = res.data.emailError || null;
-      const shopkeeper = res.data.shopkeeper;
+      // Extract data from response
+      const responseData = res.data;
+      const shopkeeper = responseData.shopkeeper || responseData;
+      
+      // Check email status - handle both possible response structures
+      let emailSent = false;
+      let emailError = null;
+      let emailDetails = null;
+
+      // Check if email was sent (different possible response structures)
+      if (responseData.emailSent !== undefined) {
+        emailSent = responseData.emailSent;
+        emailError = responseData.emailError || null;
+        emailDetails = responseData.emailDetails || null;
+      } else if (responseData.emailStatus !== undefined) {
+        emailSent = responseData.emailStatus === 'sent' || responseData.emailStatus === true;
+        emailError = responseData.emailError || responseData.emailMessage || null;
+      } else if (responseData.emailError) {
+        emailSent = false;
+        emailError = responseData.emailError;
+      } else if (responseData.message && responseData.message.includes('email could not be sent')) {
+        emailSent = false;
+        emailError = responseData.message;
+      }
 
       // Update shopkeepers list
-      if (shopkeeper) {
+      if (shopkeeper && shopkeeper.id) {
         setShopkeepersList(prev => [...prev, shopkeeper]);
         setStats(prev => ({ ...prev, shopkeepers: prev.shopkeepers + 1 }));
       }
@@ -277,11 +354,27 @@ const OwnerDashboard = () => {
           `📧 Login credentials sent to ${shopkeeper?.email || ''}`
         );
       } else {
-        showToast(
-          `⚠️ Shopkeeper ${shopkeeper?.firstName || ''} ${shopkeeper?.lastName || ''} created, but email could not be sent.`,
-          'warning',
-          emailError || 'Please check your email configuration and try again.'
+        // Check if it's an email configuration error
+        const isEmailConfigError = emailError && (
+          emailError.includes('EMAIL_PASS') || 
+          emailError.includes('EMAIL_USER') || 
+          emailError.includes('email configuration') ||
+          emailError.includes('missing from .env')
         );
+
+        if (isEmailConfigError) {
+          showToast(
+            `⚠️ Shopkeeper created, but email configuration needs attention.`,
+            'warning',
+            `Email not sent: ${emailError || 'Email service not configured properly'}. Please contact your administrator.`
+          );
+        } else {
+          showToast(
+            `⚠️ Shopkeeper ${shopkeeper?.firstName || ''} ${shopkeeper?.lastName || ''} created, but email could not be sent.`,
+            'warning',
+            emailError || 'Please check your email configuration.'
+          );
+        }
       }
 
     } catch (err) {
@@ -292,8 +385,9 @@ const OwnerDashboard = () => {
       let errorDetails = "";
 
       if (err.response) {
-        errorMessage = err.response.data?.error || err.response.data?.message || errorMessage;
-        errorDetails = err.response.data?.details || '';
+        const data = err.response.data;
+        errorMessage = data?.error || data?.message || errorMessage;
+        errorDetails = data?.details || data?.emailError || '';
         
         // Check for email-specific errors
         if (errorMessage.toLowerCase().includes('email') || errorDetails.toLowerCase().includes('email')) {
@@ -435,7 +529,15 @@ const OwnerDashboard = () => {
         {/* Header with Report Link */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Owner Dashboard</h1>
-          <div className="flex gap-3">
+          <div className="flex gap-3 flex-wrap">
+            <button
+              onClick={refreshData}
+              disabled={refreshing}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-semibold transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-50"
+            >
+              <FiRefreshCw className={`${refreshing ? 'animate-spin' : ''}`} />
+              {refreshing ? 'Refreshing...' : 'Refresh'}
+            </button>
             <Link
               to="/owner/reports"
               className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold transition-all duration-200 shadow-md hover:shadow-lg"
@@ -713,7 +815,7 @@ const OwnerDashboard = () => {
 
             return "—";
           }}
-        />                                                                                                                                          
+        />
 
         {salesList.length > 10 && (
           <div className="text-center mb-8">
