@@ -1,5 +1,5 @@
 // Navbar.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import logo from "../assets/logo.png";
 import {
@@ -22,69 +22,112 @@ function Navbar() {
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userInfo, setUserInfo] = useState(null);
-  const [language, setLanguage] = useState("en");
+  const [language, setLanguage] = useState(() => {
+    return localStorage.getItem("preferredLanguage") || "en";
+  });
   const navigate = useNavigate();
 
-  // Check authentication properly
-  useEffect(() => {
-    checkAuthStatus();
-
-    const handleAuthChange = () => {
-      checkAuthStatus();
-    };
-
-    window.addEventListener("authChange", handleAuthChange);
-
-    return () => {
-      window.removeEventListener("authChange", handleAuthChange);
-    };
-  }, []);
-
-  const checkAuthStatus = () => {
+  // Memoized function to check auth status and load user data
+  const checkAuthStatus = useCallback(() => {
     const token = localStorage.getItem("authToken");
     const userData = localStorage.getItem("user");
+    const userDataSession = sessionStorage.getItem("user");
 
-    if (token) {
-      setIsLoggedIn(true);
-      if (userData) {
-        try {
-          setUserInfo(JSON.parse(userData));
-        } catch {
-          setUserInfo(null);
+    // Check both localStorage and sessionStorage
+    const userDataString = userData || userDataSession;
+
+    if (token && userDataString) {
+      try {
+        const parsedUser = JSON.parse(userDataString);
+        setIsLoggedIn(true);
+        setUserInfo(parsedUser);
+        
+        // Update localStorage with latest user data if from sessionStorage
+        if (!userData && userDataSession) {
+          localStorage.setItem("user", userDataSession);
         }
+      } catch (error) {
+        console.error("Error parsing user data:", error);
+        setIsLoggedIn(false);
+        setUserInfo(null);
       }
     } else {
       setIsLoggedIn(false);
       setUserInfo(null);
     }
-  };
+  }, []);
 
-  const handleLanguageChange = (lang) => {
+  // Initial auth check and setup listeners
+  useEffect(() => {
+    // Initial check
+    checkAuthStatus();
+
+    // Listen for storage changes (from other tabs)
+    const handleStorageChange = (e) => {
+      if (e.key === "authToken" || e.key === "user" || e.key === null) {
+        checkAuthStatus();
+      }
+    };
+
+    // Custom event for auth changes within the same tab
+    const handleAuthChange = () => {
+      checkAuthStatus();
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    window.addEventListener("authChange", handleAuthChange);
+    window.addEventListener("userUpdate", handleAuthChange);
+
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("authChange", handleAuthChange);
+      window.removeEventListener("userUpdate", handleAuthChange);
+    };
+  }, [checkAuthStatus]);
+
+  // Language change handler with persistence
+  const handleLanguageChange = useCallback((lang) => {
     setLanguage(lang);
+    localStorage.setItem("preferredLanguage", lang);
     setShowLanguageDropdown(false);
-  };
+  }, []);
 
-  const handleLogout = () => {
+  // Logout handler with cleanup
+  const handleLogout = useCallback(() => {
+    // Clear all storage
     localStorage.removeItem("authToken");
     localStorage.removeItem("user");
     sessionStorage.removeItem("authToken");
     sessionStorage.removeItem("user");
 
+    // Reset state
     setIsLoggedIn(false);
     setUserInfo(null);
+    setShowUserDropdown(false);
+    setShowMobileMenu(false);
 
+    // Dispatch event for other components
     window.dispatchEvent(new Event("authChange"));
+    
+    // Navigate to login
     navigate("/login");
-  };
+  }, [navigate]);
 
   // Role-based dashboard link
-  const getDashboardLink = () => {
-    if (userInfo?.role === "owner") return "/owner-dashboard";
-    if (userInfo?.role === "shopkeeper") return "/shopkeeper-dashboard";
-    return "/";
-  };
+  const getDashboardLink = useCallback(() => {
+    if (!userInfo?.role) return "/";
+    
+    const roleMap = {
+      owner: "/owner-dashboard",
+      shopkeeper: "/shopkeeper-dashboard",
+      admin: "/admin-dashboard",
+    };
+    
+    return roleMap[userInfo.role] || "/";
+  }, [userInfo?.role]);
 
-  const getNavLinks = () => {
+  // Get navigation links based on auth state
+  const getNavLinks = useCallback(() => {
     if (isLoggedIn) {
       return [
         { id: "home", to: "/", icon: <FiHome />, text: "Home" },
@@ -99,21 +142,64 @@ function Navbar() {
       { id: "about", to: "/Aboutus", icon: <FiShoppingCart />, text: "About Us" },
       { id: "signup", to: "/register", icon: <FiBarChart2 />, text: "Signup" },
     ];
-  };
+  }, [isLoggedIn, getDashboardLink]);
 
-  const getUserInitials = () => {
-    if (!userInfo?.firstName && !userInfo?.lastName) return "U";
-    const firstName = userInfo?.firstName || "";
-    const lastName = userInfo?.lastName || "";
-    return (firstName.charAt(0) + lastName.charAt(0)).toUpperCase() || "U";
-  };
+  // Helper functions for user display with safe access
+  const getUserInitials = useCallback(() => {
+    if (!userInfo) return "U";
+    
+    const firstName = userInfo.firstName || "";
+    const lastName = userInfo.lastName || "";
+    const email = userInfo.email || "";
+    
+    if (firstName && lastName) {
+      return (firstName.charAt(0) + lastName.charAt(0)).toUpperCase();
+    }
+    
+    if (firstName) {
+      return firstName.charAt(0).toUpperCase();
+    }
+    
+    if (email) {
+      return email.charAt(0).toUpperCase();
+    }
+    
+    return "U";
+  }, [userInfo]);
 
-  const getUserFullName = () => {
-    if (!userInfo?.firstName && !userInfo?.lastName) return "User";
-    return `${userInfo?.firstName || ''} ${userInfo?.lastName || ''}`.trim() || "User";
-  };
+  const getUserFullName = useCallback(() => {
+    if (!userInfo) return "User";
+    
+    const firstName = userInfo.firstName || "";
+    const lastName = userInfo.lastName || "";
+    const email = userInfo.email || "";
+    
+    if (firstName && lastName) {
+      return `${firstName} ${lastName}`.trim();
+    }
+    
+    if (firstName) {
+      return firstName;
+    }
+    
+    if (email) {
+      return email.split("@")[0];
+    }
+    
+    return "User";
+  }, [userInfo]);
 
-  // Mobile menu links
+  const getUserDisplayName = useCallback(() => {
+    if (!userInfo) return "Guest";
+    
+    const fullName = getUserFullName();
+    const role = userInfo.role || "";
+    const displayRole = role.charAt(0).toUpperCase() + role.slice(1);
+    
+    return `${fullName} (${displayRole})`;
+  }, [userInfo, getUserFullName]);
+
+  // Get mobile links
   const mobileLinks = getNavLinks();
 
   return (
@@ -131,7 +217,14 @@ function Navbar() {
                 {showMobileMenu ? <FiX size={24} /> : <FiMenu size={24} />}
               </button>
 
-              <img src={logo} alt="Logo" className="h-10 w-10 rounded object-cover" />
+              <img 
+                src={logo} 
+                alt="Logo" 
+                className="h-10 w-10 rounded object-cover" 
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                }}
+              />
 
               <Link to="/" className="text-2xl font-bold">
                 DukaFasta
@@ -169,13 +262,13 @@ function Navbar() {
                   <div className="absolute right-0 mt-2 w-32 bg-white text-black rounded-lg shadow-lg overflow-hidden">
                     <button
                       onClick={() => handleLanguageChange("en")}
-                      className="block w-full text-left px-4 py-2 hover:bg-gray-100"
+                      className="block w-full text-left px-4 py-2 hover:bg-gray-100 transition-colors"
                     >
                       🇬🇧 English
                     </button>
                     <button
                       onClick={() => handleLanguageChange("sw")}
-                      className="block w-full text-left px-4 py-2 hover:bg-gray-100"
+                      className="block w-full text-left px-4 py-2 hover:bg-gray-100 transition-colors"
                     >
                       🇹🇿 Swahili
                     </button>
@@ -190,7 +283,7 @@ function Navbar() {
                   aria-label="Notifications"
                 >
                   <FiBell size={20} />
-                  <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
+                  <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full animate-pulse"></span>
                 </button>
               )}
 
@@ -210,17 +303,26 @@ function Navbar() {
 
                   {showUserDropdown && (
                     <div className="absolute right-0 mt-2 w-56 bg-white text-black rounded-lg shadow-xl overflow-hidden">
-                      <div className="px-4 py-3 border-b">
+                      <div className="px-4 py-3 border-b bg-gray-50">
                         <p className="font-semibold text-gray-800">
                           {getUserFullName()}
                         </p>
                         <p className="text-sm text-gray-500 truncate">
                           {userInfo?.email || "No email"}
                         </p>
-                        <p className="text-xs text-gray-400 mt-1 capitalize">
+                        <p className="text-xs text-blue-600 font-medium mt-1 capitalize">
                           Role: {userInfo?.role || "User"}
                         </p>
                       </div>
+
+                      <Link
+                        to="/profile"
+                        className="flex items-center space-x-2 px-4 py-2 hover:bg-gray-100 transition-colors"
+                        onClick={() => setShowUserDropdown(false)}
+                      >
+                        <FiUser size={16} />
+                        <span>Profile</span>
+                      </Link>
 
                       <Link
                         to="/settings"
@@ -236,7 +338,7 @@ function Navbar() {
                           setShowUserDropdown(false);
                           handleLogout();
                         }}
-                        className="flex items-center space-x-2 w-full text-left px-4 py-2 text-red-600 hover:bg-red-50 transition-colors"
+                        className="flex items-center space-x-2 w-full text-left px-4 py-2 text-red-600 hover:bg-red-50 transition-colors border-t"
                       >
                         <FiLogOut size={16} />
                         <span>Logout</span>
@@ -273,6 +375,16 @@ function Navbar() {
                   <span>{link.text}</span>
                 </Link>
               ))}
+              
+              {/* Mobile user info */}
+              {isLoggedIn && userInfo && (
+                <div className="px-4 py-3 border-t border-blue-500 mt-2">
+                  <p className="font-semibold">{getUserFullName()}</p>
+                  <p className="text-sm text-blue-300 capitalize">
+                    Role: {userInfo.role || "User"}
+                  </p>
+                </div>
+              )}
               
               {/* Mobile logout button if logged in */}
               {isLoggedIn && (
