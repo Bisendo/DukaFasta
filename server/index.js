@@ -1,37 +1,121 @@
 'use strict';
 
 // =====================================================
-// ENVIRONMENT - Load .env FIRST
+// DukaFasta - Main Server
 // =====================================================
 
 const path = require('path');
+const fs = require('fs');
 const dotenv = require('dotenv');
-
-// Force IPv4 to fix email connection issues
 const dns = require('dns');
-dns.setDefaultResultOrder('ipv4first');
 
-// Load the .env file from the server directory
-dotenv.config({
-    path: path.join(__dirname, '.env'),
-    override: true
-});
+// =====================================================
+// FORCE IPv4
+// =====================================================
+
+try {
+    dns.setDefaultResultOrder('ipv4first');
+    console.log('🌐 DNS configured: IPv4 first');
+} catch (error) {
+    console.warn(
+        '⚠️ Could not configure IPv4 first:',
+        error.message
+    );
+}
+
+// =====================================================
+// LOAD ENVIRONMENT VARIABLES
+// =====================================================
+
+const envPath = path.join(__dirname, '.env');
+
+if (fs.existsSync(envPath)) {
+    dotenv.config({
+        path: envPath,
+        override: true
+    });
+
+    console.log(`✅ Environment loaded from: ${envPath}`);
+} else {
+    dotenv.config();
+
+    console.warn(
+        '⚠️ .env file not found in server directory'
+    );
+}
+
+// =====================================================
+// ENVIRONMENT CONFIGURATION LOG
+// =====================================================
 
 console.log('');
 console.log('========================================');
 console.log('ENVIRONMENT CONFIGURATION');
 console.log('========================================');
-console.log('DB HOST:', process.env.DB_HOST);
-console.log('DB PORT:', process.env.DB_PORT);
-console.log('DB USER:', process.env.DB_USER);
-console.log('DB NAME:', process.env.DB_NAME);
-console.log('DB PASSWORD:', process.env.DB_PASSWORD ? 'LOADED' : 'MISSING');
+
+console.log(
+    'DB HOST:',
+    process.env.DB_HOST || 'MISSING'
+);
+
+console.log(
+    'DB PORT:',
+    process.env.DB_PORT || 'MISSING'
+);
+
+console.log(
+    'DB USER:',
+    process.env.DB_USER || 'MISSING'
+);
+
+console.log(
+    'DB NAME:',
+    process.env.DB_NAME || 'MISSING'
+);
+
+console.log(
+    'DB PASSWORD:',
+    process.env.DB_PASSWORD
+        ? 'LOADED'
+        : 'MISSING'
+);
+
 console.log('----------------------------------------');
+
 console.log('EMAIL CONFIGURATION');
-console.log('EMAIL_USER:', process.env.EMAIL_USER);
-console.log('EMAIL_PASS:', process.env.EMAIL_PASS ? 'LOADED' : 'MISSING');
-console.log('EMAIL_HOST:', process.env.EMAIL_HOST || 'NOT SET');
-console.log('EMAIL_PORT:', process.env.EMAIL_PORT || 'NOT SET');
+
+console.log(
+    'EMAIL USER:',
+    process.env.EMAIL_USER || 'MISSING'
+);
+
+console.log(
+    'EMAIL PASS:',
+    process.env.EMAIL_PASS
+        ? `LOADED (${process.env.EMAIL_PASS.length} characters)`
+        : 'MISSING'
+);
+
+console.log(
+    'EMAIL HOST:',
+    process.env.EMAIL_HOST || 'smtp.gmail.com'
+);
+
+console.log(
+    'EMAIL PORT:',
+    process.env.EMAIL_PORT || '587'
+);
+
+console.log(
+    'EMAIL SECURE:',
+    process.env.EMAIL_SECURE || 'false'
+);
+
+console.log(
+    'FRONTEND URL:',
+    process.env.FRONTEND_URL || 'http://localhost:3000'
+);
+
 console.log('========================================');
 console.log('');
 
@@ -42,6 +126,11 @@ console.log('');
 const express = require('express');
 const cors = require('cors');
 
+const app = express();
+
+const PORT =
+    Number(process.env.PORT) || 4001;
+
 // =====================================================
 // DATABASE
 // =====================================================
@@ -49,12 +138,23 @@ const cors = require('cors');
 const db = require('./models');
 
 // =====================================================
-// CREATE EXPRESS APP
+// EMAIL SERVICE
 // =====================================================
 
-const app = express();
+let EmailService = null;
 
-const PORT = process.env.PORT || 4001;
+try {
+    EmailService = require('./Services/emailService');
+
+    console.log(
+        '✅ EmailService loaded successfully'
+    );
+} catch (error) {
+    console.error(
+        '❌ Failed to load EmailService:',
+        error.message
+    );
+}
 
 // =====================================================
 // MIDDLEWARE
@@ -64,12 +164,25 @@ app.use(
     cors({
         origin: true,
         credentials: true,
-        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-        allowedHeaders: ['Content-Type', 'Authorization']
+        methods: [
+            'GET',
+            'POST',
+            'PUT',
+            'DELETE',
+            'OPTIONS'
+        ],
+        allowedHeaders: [
+            'Content-Type',
+            'Authorization'
+        ]
     })
 );
 
-app.use(express.json({ limit: '10mb' }));
+app.use(
+    express.json({
+        limit: '10mb'
+    })
+);
 
 app.use(
     express.urlencoded({
@@ -79,11 +192,14 @@ app.use(
 );
 
 // =====================================================
-// REQUEST LOGGING MIDDLEWARE
+// REQUEST LOGGER
 // =====================================================
 
 app.use((req, res, next) => {
-    console.log(`📝 ${req.method} ${req.path}`);
+    console.log(
+        `📝 ${req.method} ${req.path}`
+    );
+
     next();
 });
 
@@ -91,128 +207,222 @@ app.use((req, res, next) => {
 // UPLOADS
 // =====================================================
 
+const uploadsPath =
+    path.join(__dirname, 'uploads');
+
+if (!fs.existsSync(uploadsPath)) {
+    fs.mkdirSync(
+        uploadsPath,
+        {
+            recursive: true
+        }
+    );
+
+    console.log(
+        `📁 Created uploads directory: ${uploadsPath}`
+    );
+}
+
 app.use(
     '/uploads',
-    express.static(
-        path.join(__dirname, 'uploads')
-    )
+    express.static(uploadsPath)
 );
 
 // =====================================================
-// ROUTES
+// AUTH / USERS ROUTES
 // =====================================================
 
-// -----------------------------------------------------
-// AUTH
-// -----------------------------------------------------
-
 try {
-    const userRouter = require('./routes/Users');
+    const userRouter =
+        require('./routes/Users');
 
-    app.use('/auth', userRouter);
+    // Use the Users router for user APIs
+    app.use('/users', userRouter);
 
-    console.log('✅ Auth routes loaded');
+    console.log(
+        '✅ User routes loaded at /users'
+    );
+
 } catch (error) {
+
     console.error(
-        '❌ Failed to load auth routes:',
+        '❌ Failed to load Users routes:',
         error.message
     );
 }
 
-// -----------------------------------------------------
-// PRODUCTS
-// -----------------------------------------------------
+// =====================================================
+// PRODUCTS ROUTES
+// =====================================================
 
 try {
-    const productRouter = require('./routes/Products');
+    const productRouter =
+        require('./routes/Products');
 
-    app.use('/products', productRouter);
+    app.use(
+        '/products',
+        productRouter
+    );
 
-    console.log('✅ Product routes loaded');
+    console.log(
+        '✅ Product routes loaded'
+    );
+
 } catch (error) {
+
     console.error(
-        '❌ Failed to load product routes:',
+        '❌ Failed to load Product routes:',
         error.message
     );
 }
 
-// -----------------------------------------------------
-// SALES
-// -----------------------------------------------------
+// =====================================================
+// SALES ROUTES
+// =====================================================
 
 try {
-    const salesRouter = require('./routes/Sales');
+    const salesRouter =
+        require('./routes/Sales');
 
-    app.use('/sales', salesRouter);
+    app.use(
+        '/sales',
+        salesRouter
+    );
 
-    console.log('✅ Sales routes loaded');
+    console.log(
+        '✅ Sales routes loaded'
+    );
+
 } catch (error) {
+
     console.error(
-        '❌ Failed to load sales routes:',
+        '❌ Failed to load Sales routes:',
         error.message
     );
 }
 
-// -----------------------------------------------------
-// EMAIL - Load email routes
-// -----------------------------------------------------
+// =====================================================
+// EMAIL ROUTES
+// =====================================================
 
 try {
-    // Check if email routes file exists
-    const emailRoutesPath = path.join(__dirname, 'routes', 'emailroutes.js');
-    const fs = require('fs');
-    
+
+    const emailRoutesPath =
+        path.join(
+            __dirname,
+            'routes',
+            'emailroutes.js'
+        );
+
     if (fs.existsSync(emailRoutesPath)) {
-        const emailRoutes = require('./routes/emailroutes');
-        app.use('/email', emailRoutes);
-        console.log('✅ Email routes loaded from ./routes/emailroutes.js');
+
+        const emailRouter =
+            require('./routes/emailroutes');
+
+        app.use(
+            '/email',
+            emailRouter
+        );
+
+        console.log(
+            '✅ Email routes loaded from /routes/emailroutes.js'
+        );
+
     } else {
-        console.warn('⚠️ Email routes file not found at ./routes/emailroutes.js');
-        
-        // Create a basic email route if file doesn't exist
-        const emailRouter = express.Router();
-        const EmailService = require('./Services/emailService');
-        
-        emailRouter.get('/test', async (req, res) => {
-            try {
-                const testEmail = req.query.email || 'test@example.com';
-                const result = await EmailService.testEmailConfiguration(testEmail);
-                res.json({
-                    success: result.success,
-                    message: result.success ? 'Test email sent successfully' : 'Test email failed',
-                    details: result
-                });
-            } catch (error) {
-                res.status(500).json({
-                    success: false,
-                    error: error.message
-                });
+
+        console.log(
+            'ℹ️ emailroutes.js not found'
+        );
+
+        // ---------------------------------------------
+        // BASIC TEST EMAIL ROUTE
+        // ---------------------------------------------
+
+        const emailRouter =
+            express.Router();
+
+        emailRouter.get(
+            '/test',
+            async (req, res) => {
+
+                try {
+
+                    if (!EmailService) {
+
+                        return res.status(500).json({
+                            success: false,
+                            error:
+                                'Email service could not be loaded.'
+                        });
+
+                    }
+
+                    const testEmail =
+                        String(
+                            req.query.email || ''
+                        ).trim();
+
+                    if (!testEmail) {
+
+                        return res.status(400).json({
+                            success: false,
+                            error:
+                                'Please provide an email address.'
+                        });
+                    }
+
+                    const result =
+                        await EmailService.testEmailConfiguration(
+                            testEmail
+                        );
+
+                    return res.status(
+                        result.success
+                            ? 200
+                            : 500
+                    ).json({
+                        success:
+                            result.success,
+
+                        message:
+                            result.success
+                                ? 'Test email sent successfully.'
+                                : 'Test email failed.',
+
+                        details:
+                            result
+                    });
+
+                } catch (error) {
+
+                    console.error(
+                        '❌ Test email route error:',
+                        error
+                    );
+
+                    return res.status(500).json({
+                        success: false,
+                        error:
+                            error.message
+                    });
+                }
             }
-        });
-        
-        app.use('/email', emailRouter);
-        console.log('✅ Basic email routes created');
+        );
+
+        app.use(
+            '/email',
+            emailRouter
+        );
+
+        console.log(
+            '✅ Basic email test route created'
+        );
     }
+
 } catch (error) {
+
     console.error(
         '❌ Failed to load email routes:',
-        error.message
-    );
-}
-
-// -----------------------------------------------------
-// USERS
-// -----------------------------------------------------
-
-try {
-    const userManagementRoutes = require('./routes/Users');
-
-    app.use('/users', userManagementRoutes);
-
-    console.log('✅ User routes loaded');
-} catch (error) {
-    console.error(
-        '❌ Failed to load user routes:',
         error.message
     );
 }
@@ -221,118 +431,313 @@ try {
 // ROOT ENDPOINT
 // =====================================================
 
-app.get('/', (req, res) => {
-    res.status(200).json({
-        success: true,
-        message: 'Inventory Management System API',
-        version: '2.0.0',
-        endpoints: {
-            auth: '/auth',
-            products: '/products',
-            sales: '/sales',
-            email: '/email',
-            users: '/users',
-            health: '/health',
-            'test-email': '/email/test?email=your-email@example.com'
-        }
-    });
-});
+app.get(
+    '/',
+    (req, res) => {
+
+        res.status(200).json({
+
+            success: true,
+
+            message:
+                'DukaFasta Inventory Management System API',
+
+            version:
+                '2.0.0',
+
+            server:
+                'running',
+
+            endpoints: {
+
+                root:
+                    '/',
+
+                health:
+                    '/health',
+
+                users:
+                    '/users',
+
+                login:
+                    '/users/login',
+
+                owner:
+                    '/users/owner',
+
+                createShopkeeper:
+                    '/users/shopkeeper/:ownerId',
+
+                shopkeepers:
+                    '/users/shopkeepers/:ownerId',
+
+                emailStatus:
+                    '/users/email-status',
+
+                products:
+                    '/products',
+
+                sales:
+                    '/sales',
+
+                email:
+                    '/email',
+
+                testEmail:
+                    '/email/test?email=your-email@example.com'
+            }
+        });
+    }
+);
 
 // =====================================================
 // HEALTH CHECK
+// GET /health
 // =====================================================
 
-app.get('/health', async (req, res) => {
-    try {
-        // Check database connection
-        await db.sequelize.authenticate();
-        
-        // Check email service
-        let emailStatus = 'not tested';
-        try {
-            const EmailService = require('./Services/emailService');
-            if (EmailService.transporter) {
-                const isVerified = await EmailService.transporter.verify();
-                emailStatus = isVerified ? 'connected' : 'disconnected';
-            } else {
-                emailStatus = 'not configured';
+app.get(
+    '/health',
+    async (req, res) => {
+
+        const health = {
+
+            success: true,
+
+            status: 'healthy',
+
+            timestamp:
+                new Date().toISOString(),
+
+            services: {
+
+                database:
+                    'unknown',
+
+                email:
+                    'unknown',
+
+                users:
+                    'active',
+
+                products:
+                    'active',
+
+                sales:
+                    'active'
             }
-        } catch (emailError) {
-            emailStatus = 'error: ' + emailError.message;
+        };
+
+        // ---------------------------------------------
+        // DATABASE CHECK
+        // ---------------------------------------------
+
+        try {
+
+            await db.sequelize.authenticate();
+
+            health.services.database =
+                'connected';
+
+        } catch (error) {
+
+            console.error(
+                '❌ Health database check failed:',
+                error.message
+            );
+
+            health.success = false;
+
+            health.status =
+                'unhealthy';
+
+            health.services.database =
+                'disconnected';
+
+            health.databaseError =
+                error.message;
         }
 
-        res.status(200).json({
-            success: true,
-            status: 'healthy',
-            timestamp: new Date().toISOString(),
-            services: {
-                database: 'connected',
-                auth: 'active',
-                products: 'active',
-                sales: 'active',
-                users: 'active',
-                email: emailStatus
+        // ---------------------------------------------
+        // EMAIL CHECK
+        // ---------------------------------------------
+
+        try {
+
+            if (!EmailService) {
+
+                health.success = false;
+
+                health.status =
+                    'degraded';
+
+                health.services.email =
+                    'service unavailable';
+
+            } else if (
+                typeof EmailService.verifySMTP !==
+                'function'
+            ) {
+
+                health.success = false;
+
+                health.status =
+                    'degraded';
+
+                health.services.email =
+                    'verification unavailable';
+
+            } else {
+
+                const emailResult =
+                    await EmailService.verifySMTP();
+
+                if (
+                    emailResult &&
+                    emailResult.success === true
+                ) {
+
+                    health.services.email =
+                        'connected';
+
+                } else {
+
+                    health.success = false;
+
+                    health.status =
+                        'degraded';
+
+                    health.services.email =
+                        'not connected';
+
+                    health.emailError =
+                        emailResult?.error ||
+                        'Email verification failed.';
+                }
             }
-        });
 
-    } catch (error) {
-        console.error(
-            '❌ Health check database error:',
-            error.message
-        );
+        } catch (error) {
 
-        res.status(500).json({
-            success: false,
-            status: 'unhealthy',
-            timestamp: new Date().toISOString(),
-            services: {
-                database: 'disconnected'
-            },
-            error: error.message
-        });
+            console.error(
+                '❌ Health email check failed:',
+                error.message
+            );
+
+            health.success = false;
+
+            health.status =
+                'degraded';
+
+            health.services.email =
+                'error';
+
+            health.emailError =
+                error.message;
+        }
+
+        // ---------------------------------------------
+        // RESPONSE
+        // ---------------------------------------------
+
+        return res.status(
+            health.services.database ===
+                'connected'
+                ? 200
+                : 503
+        ).json(health);
     }
-});
+);
 
 // =====================================================
 // 404 HANDLER
 // =====================================================
 
-app.use((req, res) => {
-    res.status(404).json({
-        success: false,
-        error: 'Route not found',
-        path: req.originalUrl,
-        availableEndpoints: {
-            '/': 'API Information',
-            '/health': 'Health Check',
-            '/auth': 'Authentication',
-            '/auth/login': 'Login',
-            '/users': 'User Management',
-            '/users/shopkeeper/:ownerId': 'Create Shopkeeper',
-            '/users/shopkeepers/:ownerId': 'Get Shopkeepers',
-            '/products': 'Product Management',
-            '/sales': 'Sales Management',
-            '/email': 'Email Service',
-            '/email/test': 'Test Email'
-        }
-    });
-});
+app.use(
+    (req, res) => {
+
+        res.status(404).json({
+
+            success: false,
+
+            error:
+                'Route not found',
+
+            path:
+                req.originalUrl,
+
+            method:
+                req.method,
+
+            availableEndpoints: {
+
+                root:
+                    'GET /',
+
+                health:
+                    'GET /health',
+
+                login:
+                    'POST /users/login',
+
+                owner:
+                    'POST /users/owner',
+
+                createShopkeeper:
+                    'POST /users/shopkeeper/:ownerId',
+
+                getShopkeepers:
+                    'GET /users/shopkeepers/:ownerId',
+
+                emailStatus:
+                    'GET /users/email-status',
+
+                testEmail:
+                    'GET /email/test?email=your-email@example.com',
+
+                products:
+                    '/products',
+
+                sales:
+                    '/sales'
+            }
+        });
+    }
+);
 
 // =====================================================
 // GLOBAL ERROR HANDLER
 // =====================================================
 
 app.use(
-    (err, req, res, next) => {
-        console.error('❌ Server error:', err);
-        
-        const statusCode = err.status || err.statusCode || 500;
-        
+    (
+        err,
+        req,
+        res,
+        next
+    ) => {
+
+        console.error(
+            '❌ GLOBAL SERVER ERROR:',
+            err
+        );
+
+        const statusCode =
+            err.status ||
+            err.statusCode ||
+            500;
+
         res.status(statusCode).json({
+
             success: false,
-            error: err.message || 'Internal server error',
-            path: req.originalUrl,
-            timestamp: new Date().toISOString()
+
+            error:
+                err.message ||
+                'Internal server error',
+
+            path:
+                req.originalUrl,
+
+            timestamp:
+                new Date().toISOString()
         });
     }
 );
@@ -342,138 +747,205 @@ app.use(
 // =====================================================
 
 let dbInitialized = false;
-let initializationPromise = null;
+
+let initializationPromise =
+    null;
 
 async function initializeDatabase() {
-    // Already connected
+
     if (dbInitialized) {
         return true;
     }
 
-    // Prevent multiple simultaneous initialization attempts
     if (initializationPromise) {
         return initializationPromise;
     }
 
-    initializationPromise = (async () => {
-        console.log('');
-        console.log('========================================');
-        console.log('DATABASE INITIALIZATION');
-        console.log('========================================');
+    initializationPromise =
+        (async () => {
 
-        // -------------------------------------------------
-        // VALIDATE ENVIRONMENT
-        // -------------------------------------------------
-
-        const requiredVariables = [
-            'DB_HOST',
-            'DB_PORT',
-            'DB_NAME',
-            'DB_USER',
-            'DB_PASSWORD'
-        ];
-
-        let missingVariables = [];
-        for (const variable of requiredVariables) {
-            if (!process.env[variable]) {
-                missingVariables.push(variable);
-            }
-        }
-
-        if (missingVariables.length > 0) {
-            throw new Error(
-                `Missing environment variables: ${missingVariables.join(', ')}`
+            console.log('');
+            console.log(
+                '========================================'
             );
-        }
+            console.log(
+                'DATABASE INITIALIZATION'
+            );
+            console.log(
+                '========================================'
+            );
 
-        console.log('✅ Database environment variables found');
+            // -----------------------------------------
+            // REQUIRED DATABASE VARIABLES
+            // -----------------------------------------
 
-        // -------------------------------------------------
-        // DATABASE CONNECTION WITH RETRIES
-        // -------------------------------------------------
+            const requiredVariables = [
+                'DB_HOST',
+                'DB_PORT',
+                'DB_NAME',
+                'DB_USER',
+                'DB_PASSWORD'
+            ];
 
-        const maxAttempts = 5;
-        let lastError = null;
+            const missingVariables =
+                requiredVariables.filter(
+                    variable =>
+                        !process.env[variable]
+                );
 
-        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-            try {
-                console.log(`🔄 Database connection attempt ${attempt}/${maxAttempts}...`);
-                await db.sequelize.authenticate();
-                console.log('✅ Database connection successful');
-                break;
-            } catch (error) {
-                lastError = error;
-                console.error(`❌ Database attempt ${attempt} failed:`, error.message);
-                
-                if (attempt < maxAttempts) {
-                    const waitTime = attempt * 3000;
-                    console.log(`⏳ Waiting ${waitTime / 1000} seconds before retry...`);
-                    await new Promise(resolve => setTimeout(resolve, waitTime));
+            if (
+                missingVariables.length > 0
+            ) {
+
+                throw new Error(
+                    `Missing environment variables: ${missingVariables.join(', ')}`
+                );
+            }
+
+            console.log(
+                '✅ Database environment variables found'
+            );
+
+            // -----------------------------------------
+            // DATABASE CONNECTION
+            // -----------------------------------------
+
+            const maxAttempts = 5;
+
+            let connected = false;
+
+            let lastError = null;
+
+            for (
+                let attempt = 1;
+                attempt <= maxAttempts;
+                attempt++
+            ) {
+
+                try {
+
+                    console.log(
+                        `🔄 Database connection attempt ${attempt}/${maxAttempts}...`
+                    );
+
+                    await db.sequelize.authenticate();
+
+                    connected = true;
+
+                    console.log(
+                        '✅ Database connection successful'
+                    );
+
+                    break;
+
+                } catch (error) {
+
+                    lastError = error;
+
+                    console.error(
+                        `❌ Database attempt ${attempt} failed:`,
+                        error.message
+                    );
+
+                    if (
+                        attempt <
+                        maxAttempts
+                    ) {
+
+                        const waitTime =
+                            attempt * 3000;
+
+                        console.log(
+                            `⏳ Waiting ${waitTime / 1000} seconds...`
+                        );
+
+                        await new Promise(
+                            resolve =>
+                                setTimeout(
+                                    resolve,
+                                    waitTime
+                                )
+                        );
+                    }
                 }
             }
-        }
 
-        // -------------------------------------------------
-        // CHECK IF CONNECTION EVENTUALLY FAILED
-        // -------------------------------------------------
+            if (!connected) {
 
-        if (lastError) {
-            try {
-                await db.sequelize.authenticate();
-            } catch (error) {
-                throw error;
+                throw (
+                    lastError ||
+                    new Error(
+                        'Unable to connect to database.'
+                    )
+                );
             }
-        }
 
-        // -------------------------------------------------
-        // SYNCHRONIZE DATABASE
-        // -------------------------------------------------
+            // -----------------------------------------
+            // SYNCHRONIZE DATABASE
+            // -----------------------------------------
 
-        console.log('🔄 Synchronizing database models...');
-        await db.sequelize.sync();
-        console.log('✅ Database synchronized');
+            console.log(
+                '🔄 Synchronizing database models...'
+            );
 
-        // -------------------------------------------------
-        // CHECK MODELS
-        // -------------------------------------------------
+            await db.sequelize.sync();
 
-        if (db.User) {
-            console.log('✅ User model ready');
-        } else {
-            console.warn('⚠️ User model not found');
-        }
+            console.log(
+                '✅ Database synchronized'
+            );
 
-        if (db.Product) {
-            console.log('✅ Product model ready');
-        } else {
-            console.warn('⚠️ Product model not found');
-        }
+            // -----------------------------------------
+            // CHECK MODELS
+            // -----------------------------------------
 
-        if (db.Sale) {
-            console.log('✅ Sale model ready');
-        } else {
-            console.warn('⚠️ Sale model not found');
-        }
+            console.log(
+                db.User
+                    ? '✅ User model ready'
+                    : '⚠️ User model not found'
+            );
 
-        // -------------------------------------------------
-        // DATABASE READY
-        // -------------------------------------------------
+            console.log(
+                db.Product
+                    ? '✅ Product model ready'
+                    : '⚠️ Product model not found'
+            );
 
-        dbInitialized = true;
+            console.log(
+                db.Sale
+                    ? '✅ Sale model ready'
+                    : '⚠️ Sale model not found'
+            );
 
-        console.log('');
-        console.log('========================================');
-        console.log('✅ DATABASE READY');
-        console.log('========================================');
-        console.log('');
+            // -----------------------------------------
+            // READY
+            // -----------------------------------------
 
-        return true;
-    })();
+            dbInitialized = true;
+
+            console.log('');
+            console.log(
+                '========================================'
+            );
+            console.log(
+                '✅ DATABASE READY'
+            );
+            console.log(
+                '========================================'
+            );
+            console.log('');
+
+            return true;
+        })();
 
     try {
+
         return await initializationPromise;
+
     } catch (error) {
-        initializationPromise = null;
+
+        initializationPromise =
+            null;
+
         throw error;
     }
 }
@@ -482,43 +954,166 @@ async function initializeDatabase() {
 // START SERVER
 // =====================================================
 
-if (require.main === module) {
-    initializeDatabase()
-        .then(async () => {
-            // Test email configuration on startup
-            try {
-                const EmailService = require('./Services/emailService');
-                if (EmailService.transporter) {
-                    await EmailService.transporter.verify();
-                    console.log('✅ Email service verified and ready');
-                }
-            } catch (emailError) {
-                console.warn('⚠️ Email service not ready:', emailError.message);
-                console.warn('⚠️ Please check your EMAIL_USER and EMAIL_PASS in .env');
-            }
+async function startServer() {
 
-            app.listen(PORT, () => {
+    try {
+
+        // ---------------------------------------------
+        // DATABASE
+        // ---------------------------------------------
+
+        await initializeDatabase();
+
+        // ---------------------------------------------
+        // EMAIL VERIFICATION
+        // ---------------------------------------------
+
+        console.log('');
+        console.log(
+            '========================================'
+        );
+        console.log(
+            'EMAIL SERVICE STARTUP CHECK'
+        );
+        console.log(
+            '========================================'
+        );
+
+        if (!EmailService) {
+
+            console.warn(
+                '⚠️ EmailService could not be loaded.'
+            );
+
+        } else if (
+            typeof EmailService.verifySMTP !==
+            'function'
+        ) {
+
+            console.warn(
+                '⚠️ EmailService.verifySMTP() is missing.'
+            );
+
+        } else {
+
+            const emailResult =
+                await EmailService.verifySMTP();
+
+            if (
+                emailResult.success
+            ) {
+
+                console.log(
+                    '✅ Email service verified and ready'
+                );
+
+            } else {
+
+                console.warn(
+                    '⚠️ Email service is not ready'
+                );
+
+                console.warn(
+                    'Reason:',
+                    emailResult.error
+                );
+            }
+        }
+
+        console.log(
+            '========================================'
+        );
+
+        // ---------------------------------------------
+        // START HTTP SERVER
+        // ---------------------------------------------
+
+        app.listen(
+            PORT,
+            () => {
+
                 console.log('');
-                console.log('========================================');
-                console.log(`🚀 Server running on port ${PORT}`);
-                console.log(`🌐 API: http://localhost:${PORT}`);
-                console.log(`❤️ Health: http://localhost:${PORT}/health`);
-                console.log(`📧 Test Email: http://localhost:${PORT}/email/test?email=your-email@example.com`);
-                console.log('========================================');
+                console.log(
+                    '========================================'
+                );
+
+                console.log(
+                    `🚀 DukaFasta server running on port ${PORT}`
+                );
+
+                console.log(
+                    `🌐 API: http://localhost:${PORT}`
+                );
+
+                console.log(
+                    `❤️ Health: http://localhost:${PORT}/health`
+                );
+
+                console.log(
+                    `👤 Users: http://localhost:${PORT}/users`
+                );
+
+                console.log(
+                    `📦 Products: http://localhost:${PORT}/products`
+                );
+
+                console.log(
+                    `🛒 Sales: http://localhost:${PORT}/sales`
+                );
+
+                console.log(
+                    `📧 Email: http://localhost:${PORT}/email`
+                );
+
+                console.log(
+                    `📧 Test Email: http://localhost:${PORT}/email/test?email=your-email@example.com`
+                );
+
+                console.log(
+                    '========================================'
+                );
+
                 console.log('');
-            });
-        })
-        .catch(error => {
-            console.error('');
-            console.error('❌ Failed to start server');
-            console.error(error.message);
-            console.error('');
-            process.exit(1);
-        });
+            }
+        );
+
+    } catch (error) {
+
+        console.error('');
+        console.error(
+            '========================================'
+        );
+
+        console.error(
+            '❌ FAILED TO START SERVER'
+        );
+
+        console.error(
+            '========================================'
+        );
+
+        console.error(
+            error.message
+        );
+
+        console.error('');
+
+        process.exit(1);
+    }
 }
 
 // =====================================================
-// EXPORT FOR VERCEL / OTHER HOSTING
+// START ONLY WHEN RUN DIRECTLY
+// =====================================================
+
+if (
+    require.main === module
+) {
+    startServer();
+}
+
+// =====================================================
+// EXPORT APP
 // =====================================================
 
 module.exports = app;
